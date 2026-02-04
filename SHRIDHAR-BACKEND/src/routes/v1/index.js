@@ -20,6 +20,7 @@ router.use('/technicians', technicianRoutes);
 router.use('/services', serviceRoutes);
 router.use('/bookings', bookingRoutes);
 router.use('/categories', categoryRoutes);
+router.use('/reviews', require('./reviewRoutes'));
 
 // --- ENABLED ENDPOINTS ---
 router.use('/notifications', notificationRoutes);

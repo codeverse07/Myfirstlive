@@ -1,6 +1,7 @@
 import React from 'react';
-import { Star, Clock, ChevronRight, Check } from 'lucide-react';
+import { Star, Clock, ChevronRight, Check, Tag, Calendar } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { format } from 'date-fns';
 import Button from './Button';
 
 const ServiceCard = ({ service, onBook, variant = 'user', onEdit, onDelete }) => {
@@ -38,7 +39,7 @@ const ServiceCard = ({ service, onBook, variant = 'user', onEdit, onDelete }) =>
             </div>
 
             {/* Content Section */}
-            <div className="p-3 md:p-6 flex flex-col flex-grow justify-between">
+            <div className="p-3 md:p-6 flex flex-col grow justify-between">
                 <div>
                     <h3 className="font-bold text-sm md:text-xl text-slate-900 dark:text-white mb-1 md:mb-2 line-clamp-2 md:line-clamp-1 group-hover:text-rose-600 md:group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                         {service.title}
@@ -52,10 +53,21 @@ const ServiceCard = ({ service, onBook, variant = 'user', onEdit, onDelete }) =>
                 </div>
 
                 {/* Meta Info - Hidden on mobile to save space, or very compact */}
-                <div className="hidden md:flex items-center gap-4 text-xs font-medium text-slate-500 dark:text-slate-400 mb-6 border-t border-slate-50 dark:border-slate-800 pt-4 mt-auto">
+                <div className="hidden md:flex flex-wrap items-center gap-4 text-xs font-medium text-slate-500 dark:text-slate-400 mb-6 border-t border-slate-50 dark:border-slate-800 pt-4 mt-auto">
+                    {variant === 'technician' ? (
+                        <div className="flex items-center gap-1.5">
+                            <Calendar className="w-4 h-4 text-blue-500" />
+                            <span>Created {service.createdAt ? format(new Date(service.createdAt), 'MMM d, yyyy') : 'Recently'}</span>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-1.5">
+                            <Clock className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                            <span>60 mins</span>
+                        </div>
+                    )}
                     <div className="flex items-center gap-1.5">
-                        <Clock className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-                        <span>60 mins</span>
+                        <Tag className="w-4 h-4 text-indigo-500" />
+                        <span>{service.category}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <Check className="w-4 h-4 text-green-500" />
@@ -89,7 +101,7 @@ const ServiceCard = ({ service, onBook, variant = 'user', onEdit, onDelete }) =>
                         </>
                     ) : (
                         <>
-                            <Link to={`/services/${service.id}`} className="flex-1 hidden md:block">
+                            <Link to={`/services/${service._id || service.id}`} className="flex-1 hidden md:block">
                                 <Button variant="outline" size="sm" className="w-full justify-center border-slate-200 dark:border-slate-700 hover:border-red-600 md:hover:border-blue-600 hover:text-red-600 md:hover:text-blue-600 dark:text-slate-300 dark:hover:text-blue-400 px-2">
                                     Details
                                 </Button>

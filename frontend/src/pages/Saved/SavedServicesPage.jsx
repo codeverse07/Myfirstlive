@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import client from '../../api/client';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Heart, Search, Star } from 'lucide-react';
 import { useUser } from '../../context/UserContext';
@@ -12,12 +13,30 @@ import MobileServiceDetail from '../../pages/Services/MobileServiceDetail';
 const SavedServicesPage = () => {
     const navigate = useNavigate();
     const { savedServices, toggleSavedService } = useUser();
-    const { services } = useAdmin();
+    // const { services } = useAdmin(); // REMOVED
+    const [services, setServices] = useState([]);
+    const [loading, setLoading] = useState(true);
     const { addBooking } = useBookings();
 
     const [selectedService, setSelectedService] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
+
+    useEffect(() => {
+        const fetchServices = async () => {
+            try {
+                const res = await client.get('/services');
+                if (res.data.data) {
+                    setServices(res.data.data.services || res.data.data.docs || []);
+                }
+            } catch (err) {
+                console.error("Failed to fetch services for saved list:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchServices();
+    }, []);
 
     const savedList = services.filter(service => savedServices.includes(service.id));
 
@@ -130,7 +149,7 @@ const SavedServicesPage = () => {
 
             {isMobileDetailOpen && selectedService && (
                 <MobileServiceDetail
-                    serviceId={selectedService.id}
+                    service={selectedService}
                     onClose={() => setIsMobileDetailOpen(false)}
                 />
             )}

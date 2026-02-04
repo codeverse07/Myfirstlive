@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import MobileBottomNav from '../../components/mobile/MobileBottomNav';
 import MobileServiceDetail from '../Services/MobileServiceDetail';
 import { motion, AnimatePresence } from 'framer-motion';
+import client from '../../api/client';
 
 const MobileSearchPage = () => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -14,7 +15,40 @@ const MobileSearchPage = () => {
     const [isListening, setIsListening] = useState(false);
     const scrollContainerRef = useRef(null);
     const navigate = useNavigate();
-    const { services, categories } = useAdmin();
+    const [services, setServices] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [loading, setLoading] = useState(true);
+    // const { services, categories } = useAdmin(); // REMOVED
+
+    useEffect(() => {
+        const fetchPublicData = async () => {
+            try {
+                // Determine if we need to fetch real data or use static as fallback
+                // For search page, dynamic is better
+                const [servicesRes, categoriesRes] = await Promise.all([
+                    client.get('/services'),
+                    client.get('/categories')
+                ]);
+
+                if (servicesRes.data.data) {
+                    const rawServices = servicesRes.data.data.services || servicesRes.data.data.docs || [];
+                    setServices(rawServices);
+                }
+
+                if (categoriesRes.data.data) {
+                    setCategories(categoriesRes.data.data.categories || []);
+                }
+            } catch (err) {
+                console.error("Failed to fetch search data:", err);
+                // Fallback to static data if fetch fails
+                setServices(staticServices);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchPublicData();
+    }, []);
 
     // Rotating Border CSS handled globally in index.css
 
@@ -126,7 +160,7 @@ const MobileSearchPage = () => {
             <AnimatePresence>
                 {selectedServiceId && (
                     <MobileServiceDetail
-                        serviceId={selectedServiceId}
+                        service={services.find(s => s.id === selectedServiceId) || staticServices.find(s => s.id === selectedServiceId)}
                         onClose={() => setSelectedServiceId(null)}
                     />
                 )}
@@ -197,9 +231,9 @@ const MobileSearchPage = () => {
                         key={service.id}
                         data-id={service.id}
                         onClick={() => setSelectedServiceId(service.id)}
-                        className={`search-card search-card-isolated relative rounded-[2rem] ring-1 ring-transparent dark:ring-white/5 cursor-pointer active:scale-[0.98] ${activeCardId === service.id ? 'scale-[1.02] shadow-2xl' : 'scale-100 shadow-md'}`}
+                        className={`search-card search-card-isolated relative rounded-4xl ring-1 ring-transparent dark:ring-white/5 cursor-pointer active:scale-[0.98] ${activeCardId === service.id ? 'scale-[1.02] shadow-2xl' : 'scale-100 shadow-md'}`}
                     >
-                        <div className="rounded-[2rem] overflow-hidden w-full h-full relative z-10 bg-white dark:bg-slate-900 flex p-4 gap-4 isolation-isolate">
+                        <div className="rounded-4xl overflow-hidden w-full h-full relative z-10 bg-white dark:bg-slate-900 flex p-4 gap-4 isolation-isolate">
                             {/* Image Saved */}
                             <div className="w-24 h-24 rounded-2xl overflow-hidden shrink-0 bg-gray-100 dark:bg-slate-800">
                                 <img src={service.image} alt={service.title} className="w-full h-full object-cover" />

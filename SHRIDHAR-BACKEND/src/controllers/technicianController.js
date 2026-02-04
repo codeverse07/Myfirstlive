@@ -48,6 +48,11 @@ exports.createProfile = async (req, res, next) => {
             { new: true, upsert: true, runValidators: true }
         );
 
+        // 4. Sync profile photo to User model if provided
+        if (profileData.profilePhoto) {
+            await User.findByIdAndUpdate(req.user.id, { profilePhoto: profileData.profilePhoto });
+        }
+
         res.status(201).json({
             status: 'success',
             data: { profile }
@@ -95,6 +100,11 @@ exports.updateProfile = async (req, res, next) => {
 
         if (!profile) {
             return next(new AppError('Technician profile not found. Please create one first.', 404));
+        }
+
+        // 3. Sync profile photo to User model if updated
+        if (req.body.profilePhoto) {
+            await User.findByIdAndUpdate(req.user.id, { profilePhoto: req.body.profilePhoto });
         }
 
         res.status(200).json({

@@ -24,4 +24,6 @@ router
         reviewController.updateReview
     );
 
+router.get('/technician/:technicianId', reviewController.getTechnicianReviews);
+
 module.exports = router;

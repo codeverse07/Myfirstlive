@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { Search, ArrowRight, ShieldCheck, Clock, Award, Hammer, Zap, Refrigerator, Droplets, Truck, Calendar, Map, CheckCircle } from 'lucide-react';
-import { services as staticServices } from '../../data/mockData';
-import { useAdmin } from '../../context/AdminContext';
+
+// import { useAdmin } from '../../context/AdminContext';
 import ServiceCard from '../../components/common/ServiceCard';
 import ServiceStack from '../../components/home/ServiceStack';
 import Button from '../../components/common/Button';
@@ -12,6 +12,7 @@ import Particles from '../../react-bit/Particle';
 import BookingModal from '../../components/bookings/BookingModal';
 import { useBookings } from '../../context/BookingContext';
 import { useNavigate } from 'react-router-dom';
+import client from '../../api/client';
 
 import promoImg from '../../assets/images/fridge-repair.png';
 import MobileHomePage from './MobileHomePage';
@@ -38,7 +39,35 @@ const placeholders = [
 const particleColors = ['#ffffff', '#aaacb9'];
 
 const HomePage = () => {
-  const { services, categories } = useAdmin();
+  // const { services, categories } = useAdmin(); // REMOVED
+  // Local state for public data
+  const [services, setServices] = useState([]);
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    const fetchPublicData = async () => {
+      try {
+        const [servicesRes, categoriesRes] = await Promise.all([
+          client.get('/services'),
+          client.get('/categories')
+        ]);
+
+        if (servicesRes.data.data) {
+          const rawServices = servicesRes.data.data.services || servicesRes.data.data.docs || [];
+          setServices(rawServices);
+        }
+
+        if (categoriesRes.data.data) {
+          setCategories(categoriesRes.data.data.categories || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch public home data:", err);
+      }
+    };
+
+    fetchPublicData();
+  }, []);
+
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [typingStep, setTypingStep] = useState(0);
   const [fadeKey, setFadeKey] = useState(0);
@@ -204,7 +233,7 @@ const HomePage = () => {
     <>
       {/* Mobile View */}
       <div className="block md:hidden">
-        <MobileHomePage />
+        <MobileHomePage services={services} categories={categories} />
       </div>
 
       {/* Desktop View */}
@@ -244,14 +273,14 @@ const HomePage = () => {
             </div>
 
             {/* Superman Worker - Moved outside the text container for full-width positioning */}
-            <div className="superman-container absolute left-[2%] md:left-[5%] lg:left-[10%] top-32 md:top-48 w-80 lg:w-96 h-[28rem] lg:h-[32rem] z-20 hidden md:block pointer-events-none">
+            <div className="superman-container absolute left-[2%] md:left-[5%] lg:left-[10%] top-32 md:top-48 w-80 lg:w-96 h-112 lg:h-128 z-20 hidden md:block pointer-events-none">
               <SupermanWorker />
             </div>
 
             <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
 
               <h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tighter leading-[1.1]">
-                <span className="bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent drop-shadow-sm">
+                <span className="bg-linear-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent drop-shadow-sm">
                   Home Services,
                 </span> <br className="hidden md:block" />
                 <span className="relative inline-block mt-2">
@@ -285,7 +314,7 @@ const HomePage = () => {
                 />
                 <br className="hidden md:block" />
                 {typingStep >= 1 && (
-                  <span className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400 drop-shadow-sm">
+                  <span className="font-bold text-transparent bg-clip-text bg-linear-to-r from-cyan-400 to-blue-400 drop-shadow-sm">
                     <TextType
                       text="Quick, reliable, and affordable"
                       typingSpeed={10}
@@ -374,7 +403,7 @@ const HomePage = () => {
 
           {/* Categories Section - ScrollStack */}
           <section id="categories" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full scroll-mt-24">
-            <ServiceStack />
+            <ServiceStack categories={categories} />
           </section>
 
           {/* Popular Services Section */}
@@ -422,7 +451,7 @@ const HomePage = () => {
                   <img
                     src={promoImg}
                     alt="Professional Scheduler"
-                    className="w-full h-full object-cover grayscale-[20%] contrast-125"
+                    className="w-full h-full object-cover grayscale-20 contrast-125"
                   />
                   <div className="absolute inset-0 bg-linear-to-t from-slate-900/80 to-transparent"></div>
                   <div className="absolute bottom-5 left-5 text-white font-medium flex items-center gap-2.5">

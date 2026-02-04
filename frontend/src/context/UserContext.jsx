@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import client from '../api/client';
+import { toast } from 'react-hot-toast';
 
 const UserContext = createContext();
 
@@ -45,7 +46,8 @@ export const UserProvider = ({ children }) => {
     useEffect(() => {
         const checkAuth = async () => {
             try {
-                const { data } = await client.get('/users/me');
+                // Using /auth/me to match 'front' logic reference
+                const { data } = await client.get('/auth/me');
                 setUser(data.data.user);
             } catch (err) {
                 // Not authenticated or session expired
@@ -72,10 +74,14 @@ export const UserProvider = ({ children }) => {
         try {
             const { data } = await client.post('/auth/login', { email, password, recaptchaToken });
             setUser(data.data.user);
+            toast.success('Login successful!');
             return { success: true, user: data.data.user };
         } catch (err) {
             const msg = err.response?.data?.message || 'Login failed';
             setError(msg);
+            // toast.error(msg); // Let components handle error toast if they want custom behavior, or do it here? 
+            // Front AuthContext did: toast.error(...) inside context.
+            toast.error(msg);
             return { success: false, message: msg };
         } finally {
             setIsLoading(false);
@@ -96,10 +102,12 @@ export const UserProvider = ({ children }) => {
                 recaptchaToken // Pass token to backend
             });
             setUser(data.data.user);
+            toast.success('Registration successful!');
             return { success: true, user: data.data.user };
         } catch (err) {
             const msg = err.response?.data?.message || 'Registration failed';
             setError(msg);
+            toast.error(msg);
             return { success: false, message: msg };
         } finally {
             setIsLoading(false);
@@ -109,8 +117,10 @@ export const UserProvider = ({ children }) => {
     const logout = async () => {
         try {
             await client.post('/auth/logout');
+            toast.success('Logged out successfully');
         } catch (err) {
             console.error('Logout error', err);
+            toast.error('Logout failed');
         } finally {
             setUser(null);
             // Optionally clear local preferences
@@ -126,11 +136,14 @@ export const UserProvider = ({ children }) => {
             const res = await client.patch('/users/update-me', userData);
             if (res.data.status === 'success') {
                 setUser(res.data.data.user);
+                toast.success('Profile updated successfully!');
                 return { success: true };
             }
         } catch (err) {
             console.error('Update profile failed:', err);
-            return { success: false, message: err.response?.data?.message || 'Update failed' };
+            const msg = err.response?.data?.message || 'Update failed';
+            toast.error(msg);
+            return { success: false, message: msg };
         }
     };
 

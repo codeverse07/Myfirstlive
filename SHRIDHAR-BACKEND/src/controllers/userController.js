@@ -47,7 +47,8 @@ exports.updateMe = async (req, res, next) => {
 
         // 2) Filtered out unwanted field names that are not allowed to be updated
         // STRICTLY allow 'name', 'email' and new profile fields
-        const filteredBody = filterObj(req.body, 'name', 'email', 'phone', 'address', 'location');
+        // STRICTLY allow 'name', 'email' and new profile fields including profilePhoto (for avatars)
+        const filteredBody = filterObj(req.body, 'name', 'email', 'phone', 'address', 'location', 'profilePhoto');
 
         if (req.file) {
             const cloudinary = require('cloudinary').v2;
@@ -87,6 +88,15 @@ exports.updateMe = async (req, res, next) => {
             new: true,
             runValidators: true
         });
+
+        // 4) Sync to TechnicianProfile if user is a technician
+        if (updatedUser.role === 'TECHNICIAN' && filteredBody.profilePhoto) {
+            const TechnicianProfile = require('../models/TechnicianProfile');
+            await TechnicianProfile.findOneAndUpdate(
+                { user: req.user.id },
+                { profilePhoto: filteredBody.profilePhoto }
+            );
+        }
 
         res.status(200).json({
             status: 'success',

@@ -1,9 +1,8 @@
 import React, { useRef, useLayoutEffect, useState } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { categories } from '../../data/mockData';
 import WorkerCharacter from './WorkerCharacter';
-import { Hammer, Zap, Refrigerator, Droplets, Truck, Home } from 'lucide-react';
+import { Hammer, Zap, Refrigerator, Droplets, Truck, Home, Sparkles, ShieldCheck } from 'lucide-react';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -13,13 +12,17 @@ const iconMap = {
     Refrigerator,
     Droplets,
     Truck,
-    Home
+    Home,
+    Sparkles,
+    ShieldCheck
 };
 
-const ServiceStack = () => {
+const ServiceStack = ({ categories = [] }) => {
     const containerRef = useRef(null);
     const workerRef = useRef(null);
-    const [activeCardId, setActiveCardId] = useState(categories[0].id);
+    // Safety check for empty categories
+    const safeCategories = categories.length > 0 ? categories : [];
+    const [activeCardId, setActiveCardId] = useState(safeCategories[0]?.id || null);
 
 
     useLayoutEffect(() => {
@@ -90,8 +93,8 @@ const ServiceStack = () => {
                     trigger: card,
                     start: "top center", // When card hits center
                     end: "bottom center",
-                    onEnter: () => setActiveCardId(categories[index].id),
-                    onEnterBack: () => setActiveCardId(categories[index].id),
+                    onEnter: () => setActiveCardId(safeCategories[index].id),
+                    onEnterBack: () => setActiveCardId(safeCategories[index].id),
                 });
             });
 
@@ -125,7 +128,7 @@ const ServiceStack = () => {
                     </div>
                 </div>
 
-                {categories.map((cat, index) => {
+                {safeCategories.map((cat, index) => {
                     const isActive = activeCardId === cat.id;
                     const Icon = iconMap[cat.icon];
 

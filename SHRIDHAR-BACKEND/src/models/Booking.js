@@ -48,6 +48,8 @@ const bookingSchema = new mongoose.Schema({
         coordinates: [Number], // [longitude, latitude]
         address: String
     },
+    pickupLocation: String,
+    dropLocation: String,
     distance: Number, // in kilometers
     estimatedDuration: Number // in minutes
 }, {

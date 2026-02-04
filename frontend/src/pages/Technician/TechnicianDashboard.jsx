@@ -1,19 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTechnician } from '../../context/TechnicianContext';
 import { useUser } from '../../context/UserContext';
 import { Switch } from '@headlessui/react';
 import {
     LayoutDashboard, ClipboardList, Wallet, User,
-    Bell
+    Bell, Clock, X, TrendingUp, Star
 } from 'lucide-react';
 import TechnicianServices from './TechnicianServices';
-import TechnicianBookings from './TechnicianBookings'; // Import
+import TechnicianBookings from './TechnicianBookings';
+import { toast } from 'react-hot-toast';
 
 const TechnicianDashboard = () => {
-    const { technicianProfile, updateStatus, loading, stats, updateProfileData } = useTechnician(); // Get stats & updateProfile
+    const {
+        technicianProfile, updateStatus, loading, stats,
+        updateProfileData, jobs, reviews,
+        fetchTechnicianBookings, fetchTechnicianStats
+    } = useTechnician();
     const { user, logout } = useUser();
     const [activeTab, setActiveTab] = useState('dashboard');
     const [isSidebarOpen, setSidebarOpen] = useState(true);
+
+    useEffect(() => {
+        if (activeTab === 'dashboard') {
+            fetchTechnicianBookings();
+        }
+    }, [activeTab]);
 
     // Profile Editing State
     const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -99,10 +110,22 @@ const TechnicianDashboard = () => {
                         <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">T</div>
                         <h1 className="font-bold text-lg text-slate-900 dark:text-white">Dashboard</h1>
                     </div>
-                    <button className="relative p-2">
-                        <Bell className="w-6 h-6 text-slate-600" />
-                        <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => {
+                                fetchTechnicianBookings();
+                                fetchTechnicianStats();
+                                toast.success("Refreshed");
+                            }}
+                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+                        >
+                            <Clock className="w-5 h-5 text-slate-600" />
+                        </button>
+                        <button className="relative p-2">
+                            <Bell className="w-6 h-6 text-slate-600" />
+                            <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+                        </button>
+                    </div>
                 </header>
 
                 <div className="p-4 md:p-8 space-y-8 pb-24 md:pb-8">
@@ -114,7 +137,7 @@ const TechnicianDashboard = () => {
                                     <p className="text-slate-500 text-xs font-bold uppercase mb-1">Total Earnings</p>
                                     <h3 className="text-2xl font-black text-slate-900 dark:text-white">₹{stats?.totalEarnings || 0}</h3>
                                     <span className="text-xs font-bold text-green-500 flex items-center mt-2">
-                                        <TrendingUpIcon /> Lifetime
+                                        <TrendingUp className="w-3 h-3 mr-1" /> Lifetime
                                     </span>
                                 </div>
                                 <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
@@ -148,25 +171,109 @@ const TechnicianDashboard = () => {
                                 </div>
                             </div>
 
-                            {/* Mobile Status Card */}
-                            <div className="md:hidden bg-blue-600 p-6 rounded-3xl text-white relative overflow-hidden shadow-lg shadow-blue-500/30">
-                                <div className="relative z-10 flex items-center justify-between">
-                                    <div>
-                                        <p className="text-blue-200 text-xs font-bold uppercase mb-1">Current Status</p>
-                                        <h3 className="text-xl font-black">{technicianProfile?.isOnline ? 'You are Online' : 'You are Offline'}</h3>
-                                        <p className="text-sm text-blue-100 mt-1">{technicianProfile?.isOnline ? 'Waiting for new requests...' : 'Go online to receive jobs'}</p>
+                            {/* Today's Agenda & Pending Requests */}
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                                {/* Pending Requests */}
+                                <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h3 className="text-lg font-black text-slate-900 dark:text-white">New Requests</h3>
+                                        <span className="px-2.5 py-1 bg-yellow-100 text-yellow-700 text-[10px] font-black uppercase rounded-lg">
+                                            {jobs?.filter(j => j.status === 'PENDING').length || 0} Pending
+                                        </span>
                                     </div>
-                                    <Switch
-                                        checked={technicianProfile?.isOnline || false}
-                                        onChange={toggleStatus}
-                                        className={`${technicianProfile?.isOnline ? 'bg-green-400' : 'bg-white/20'
-                                            } relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none`}
-                                    >
-                                        <span
-                                            className={`${technicianProfile?.isOnline ? 'translate-x-7' : 'translate-x-1'
-                                                } inline-block h-6 w-6 transform rounded-full bg-white transition-transform shadow-md`}
-                                        />
-                                    </Switch>
+                                    <div className="space-y-4">
+                                        {jobs?.filter(j => j.status === 'PENDING').slice(0, 3).map(job => (
+                                            <div key={job._id} className="flex items-center gap-4 p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-2xl transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-700">
+                                                <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl flex items-center justify-center font-bold">
+                                                    {job.customer?.name?.[0] || 'U'}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold text-slate-900 dark:text-white truncate">{job.service?.title}</p>
+                                                    <p className="text-xs text-slate-500 font-medium">By {job.customer?.name}</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => setActiveTab('jobs')}
+                                                    className="px-3 py-1.5 bg-blue-600 text-white text-[10px] font-black uppercase rounded-lg shadow-lg shadow-blue-500/20"
+                                                >
+                                                    View
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {(!jobs || jobs.filter(j => j.status === 'PENDING').length === 0) && (
+                                            <div className="py-8 text-center text-slate-500 italic text-sm">No new requests</div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Today's Agenda */}
+                                <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h3 className="text-lg font-black text-slate-900 dark:text-white">Today's Agenda</h3>
+                                        <span className="px-2.5 py-1 bg-green-100 text-green-700 text-[10px] font-black uppercase rounded-lg">
+                                            {jobs?.filter(j => ['ACCEPTED', 'IN_PROGRESS'].includes(j.status)).length || 0} Total
+                                        </span>
+                                    </div>
+                                    <div className="space-y-4">
+                                        {jobs?.filter(j => ['ACCEPTED', 'IN_PROGRESS'].includes(j.status)).slice(0, 3).map(job => (
+                                            <div key={job._id} className="flex items-center gap-4 p-3 border border-slate-100 dark:border-slate-800 rounded-2xl">
+                                                <div className="flex-1">
+                                                    <p className="font-bold text-slate-900 dark:text-white">{job.service?.title}</p>
+                                                    <div className="flex items-center gap-3 mt-1">
+                                                        <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                                                            <Clock className="w-3 h-3" /> {new Date(job.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        </span>
+                                                        <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase ${job.status === 'IN_PROGRESS' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                            {job.status}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {(!jobs || jobs.filter(j => ['ACCEPTED', 'IN_PROGRESS'].includes(j.status)).length === 0) && (
+                                            <div className="py-8 text-center text-slate-500 italic text-sm">No jobs scheduled for today</div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Recent Reviews Row */}
+                            <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800">
+                                <div className="flex items-center justify-between mb-6">
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white">Recent Reviews</h3>
+                                    <span className="px-2.5 py-1 bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase rounded-lg">
+                                        {reviews?.length || 0} Total
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {reviews?.slice(0, 3).map(review => (
+                                        <div key={review._id} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center overflow-hidden">
+                                                        {review.customer?.profilePhoto ? (
+                                                            <img src={review.customer.profilePhoto} alt="" className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <User className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-24">{review.customer?.name || 'Anonymous'}</p>
+                                                        <p className="text-[10px] text-slate-500">{new Date(review.createdAt).toLocaleDateString()}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-1 bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm">
+                                                    <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                                                    <span className="text-[11px] font-black text-slate-700 dark:text-white">{review.rating}</span>
+                                                </div>
+                                            </div>
+                                            <p className="text-xs text-slate-600 dark:text-slate-400 italic line-clamp-3">
+                                                "{review.review}"
+                                            </p>
+                                        </div>
+                                    ))}
+                                    {(!reviews || reviews.length === 0) && (
+                                        <div className="col-span-full py-8 text-center text-slate-500 italic text-sm">No reviews yet. Complete your first job to get feedback!</div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -181,7 +288,7 @@ const TechnicianDashboard = () => {
                     )}
 
                     {activeTab === 'earnings' && (
-                        <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 min-h-[400px] flex flex-col items-center justify-center text-center">
+                        <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 min-h-25 flex flex-col items-center justify-center text-center">
                             <Wallet className="w-16 h-16 text-slate-300 mb-4" />
                             <h3 className="text-xl font-bold text-slate-700">Earnings Details</h3>
                             <h1 className="text-4xl font-black text-slate-900 mt-2">₹{stats?.totalEarnings || 0}</h1>
@@ -204,13 +311,16 @@ const TechnicianDashboard = () => {
                                             <img
                                                 src={
                                                     editForm.preview ||
-                                                    (technicianProfile?.profilePhoto?.startsWith('http')
-                                                        ? technicianProfile.profilePhoto
-                                                        : `http://localhost:5000/public/img/users/${technicianProfile?.profilePhoto || 'default.jpg'}`)
+                                                    (user?.profilePhoto?.startsWith('http')
+                                                        ? user.profilePhoto
+                                                        : `/uploads/users/${user?.profilePhoto || 'default.jpg'}`)
                                                 }
                                                 alt="Profile"
                                                 className="w-full h-full object-cover"
-                                                onError={(e) => e.target.src = 'https://ui-avatars.com/api/?name=' + user?.name}
+                                                onError={(e) => {
+                                                    e.target.onerror = null;
+                                                    e.target.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user?.name || 'Technician') + '&background=random';
+                                                }}
                                             />
                                             <label className="absolute inset-0 bg-black/50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                                                 <span className="text-xs font-bold">Change</span>
@@ -270,18 +380,19 @@ const TechnicianDashboard = () => {
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-6">
                                             <div className="w-24 h-24 rounded-full bg-slate-200 overflow-hidden border-4 border-white shadow-lg">
-                                                <div className="w-24 h-24 rounded-full bg-slate-200 overflow-hidden border-4 border-white shadow-lg">
-                                                    <img
-                                                        src={
-                                                            technicianProfile?.profilePhoto?.startsWith('http')
-                                                                ? technicianProfile.profilePhoto
-                                                                : `http://localhost:5000/public/img/users/${technicianProfile?.profilePhoto || 'default.jpg'}`
-                                                        }
-                                                        alt="Profile"
-                                                        className="w-full h-full object-cover"
-                                                        onError={(e) => e.target.src = 'https://ui-avatars.com/api/?name=' + user?.name}
-                                                    />
-                                                </div>
+                                                <img
+                                                    src={
+                                                        user?.profilePhoto?.startsWith('http')
+                                                            ? user.profilePhoto
+                                                            : `/uploads/users/${user?.profilePhoto || 'default.jpg'}`
+                                                    }
+                                                    alt="Profile"
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        e.target.onerror = null;
+                                                        e.target.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user?.name || 'Technician') + '&background=random';
+                                                    }}
+                                                />
                                             </div>
                                             <div>
                                                 <h2 className="text-2xl font-black text-slate-900 dark:text-white">{user?.name}</h2>
@@ -316,8 +427,8 @@ const TechnicianDashboard = () => {
                                         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Skills</h3>
                                         <div className="flex flex-wrap gap-2">
                                             {technicianProfile?.skills && technicianProfile.skills.length > 0 ? (
-                                                technicianProfile.skills.map(skill => (
-                                                    <span key={skill} className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full text-xs font-bold">
+                                                technicianProfile.skills.map((skill, index) => (
+                                                    <span key={`${skill}-${index}`} className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full text-xs font-bold">
                                                         {skill}
                                                     </span>
                                                 ))

@@ -13,6 +13,7 @@ export const TechnicianProvider = ({ children }) => {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [jobs, setJobs] = useState([]);
+    const [reviews, setReviews] = useState([]);
 
     // Fetch Technician Profile if user is a TECHNICIAN
     useEffect(() => {
@@ -41,6 +42,27 @@ export const TechnicianProvider = ({ children }) => {
 
         fetchTechnicianData();
     }, [isAuthenticated, user]);
+
+    const uploadDocuments = async (docs) => {
+        try {
+            const formData = new FormData();
+            if (docs.aadharCard) formData.append('aadharCard', docs.aadharCard);
+            if (docs.panCard) formData.append('panCard', docs.panCard);
+            if (docs.resume) formData.append('resume', docs.resume);
+
+            const res = await client.post('/technicians/documents', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            setTechnicianProfile(res.data.data.profile);
+            toast.success("Documents uploaded successfully!");
+            return { success: true };
+        } catch (error) {
+            console.error(error);
+            toast.error(error.response?.data?.message || "Document upload failed");
+            return { success: false, message: error.response?.data?.message };
+        }
+    };
 
     const createProfile = async (profileData) => {
         try {
@@ -78,23 +100,6 @@ export const TechnicianProvider = ({ children }) => {
         try {
             if (!technicianProfile) {
                 // First time going online? Create profile with defaults
-                const defaultProfile = {
-                    bio: "New Technician",
-                    skills: ["General Helper"], // Default skill
-                    location: {
-                        coordinates: [0, 0], // Default coords
-                        address: "Not provided"
-                    },
-                    isOnline: isOnline
-                };
-                // We need to use createProfile logic but simpler direct call to avoid FormData complexity if not needed?
-                // Actually createProfile uses FormData. Let's reuse createProfile or call API directly.
-                // Since createProfile expects specific object structure, let's just call API here for simplicity if no file needed.
-                // Or better, redirect user to complete profile first? 
-                // User requirement: "If he changes his status it changes". Implies he expects it to just work.
-                // Let's try to CREATE a profile if it doesn't exist.
-
-                // Construct basic profile
                 const formData = new FormData();
                 formData.append('bio', 'Looking for work');
                 formData.append('skills', 'General');
@@ -114,7 +119,7 @@ export const TechnicianProvider = ({ children }) => {
             toast.success(isOnline ? "You are now Online" : "You are now Offline");
         } catch (error) {
             console.error(error);
-            toast.error("Failed to update status. Please complete your profile first.");
+            toast.error(error.response?.data?.message || "Failed to update status. Please complete your profile first.");
         }
     };
 
@@ -170,12 +175,35 @@ export const TechnicianProvider = ({ children }) => {
         }
     };
 
+    const fetchTechnicianReviews = async () => {
+        try {
+            if (!technicianProfile?._id) return;
+            const res = await client.get(`/technicians/${technicianProfile._id}/reviews`);
+            setReviews(res.data.data.reviews);
+        } catch (error) {
+            console.error("Error fetching reviews", error);
+        }
+    };
+
     // Initial Data Load
     useEffect(() => {
         if (isAuthenticated && user?.role === 'TECHNICIAN') {
             fetchTechnicianStats();
             fetchTechnicianBookings();
+            fetchTechnicianReviews();
         }
+    }, [isAuthenticated, user, technicianProfile?._id]);
+
+    // Auto-refresh for new jobs (Polling as fallback for sockets)
+    useEffect(() => {
+        let interval;
+        if (isAuthenticated && user?.role === 'TECHNICIAN') {
+            interval = setInterval(() => {
+                fetchTechnicianBookings();
+                fetchTechnicianStats();
+            }, 30000); // Check every 30 seconds
+        }
+        return () => clearInterval(interval);
     }, [isAuthenticated, user]);
 
     const updateBookingStatus = async (bookingId, status) => {
@@ -196,10 +224,13 @@ export const TechnicianProvider = ({ children }) => {
         loading,
         stats,
         jobs,
+        reviews,
         createProfile,
         updateStatus,
         updateProfileData,
         fetchTechnicianBookings,
+        fetchTechnicianStats,
+        fetchTechnicianReviews,
         updateBookingStatus
     };
 

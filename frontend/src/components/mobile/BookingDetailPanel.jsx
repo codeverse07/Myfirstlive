@@ -156,7 +156,15 @@ const BookingDetailPanel = ({ booking, isOpen, onClose, onHelp, onUpdateStatus, 
                                     <div className="bg-indigo-50/30 dark:bg-indigo-500/5 p-5 rounded-[2.5rem] border border-indigo-100 dark:border-indigo-500/10 mb-4">
                                         <div className="flex items-center gap-4 mb-5">
                                             <div className="relative">
-                                                <img src={booking.technician.image} className="w-16 h-16 rounded-2xl object-cover shadow-md border-2 border-white dark:border-slate-900" alt="" />
+                                                <img
+                                                    src={booking.technician.image}
+                                                    className="w-16 h-16 rounded-2xl object-cover shadow-md border-2 border-white dark:border-slate-900"
+                                                    alt={booking.technician.name}
+                                                    onError={(e) => {
+                                                        e.target.onerror = null;
+                                                        e.target.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(booking.technician.name) + '&background=random';
+                                                    }}
+                                                />
                                                 <div className="absolute -bottom-1 -right-1 bg-green-500 w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 animate-pulse" />
                                             </div>
                                             <div>

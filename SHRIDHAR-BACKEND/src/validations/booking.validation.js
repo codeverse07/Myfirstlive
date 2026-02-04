@@ -12,7 +12,10 @@ const createBooking = {
             'any.required': 'Scheduled date is required'
         }),
         notes: Joi.string().max(500).allow('').optional(),
-        coordinates: Joi.array().items(Joi.number()).length(2).optional()
+        coordinates: Joi.array().items(Joi.number()).length(2).optional(),
+        address: Joi.string().allow('').optional(),
+        pickupLocation: Joi.string().allow('').optional(),
+        dropLocation: Joi.string().allow('').optional()
     })
 };
 

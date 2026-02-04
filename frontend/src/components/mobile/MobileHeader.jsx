@@ -26,7 +26,7 @@ const MobileHeader = ({ className }) => {
         >
           <div className="flex items-center gap-1.5 font-black text-[10px] uppercase tracking-[0.2em] mb-0.5">
             <MapPin className="w-3 h-3 text-rose-500 animate-bounce" />
-            <span className="bg-gradient-to-r from-rose-500 to-orange-500 bg-clip-text text-transparent">Current Location</span>
+            <span className="bg-linear-to-r from-rose-500 to-orange-500 bg-clip-text text-transparent">Current Location</span>
           </div>
           <div className="flex items-center gap-1.5 relative">
             <span className="font-extrabold text-slate-900 dark:text-white text-base truncate relative z-10 group-hover:text-rose-600 transition-colors tracking-tight">
@@ -46,7 +46,7 @@ const MobileHeader = ({ className }) => {
             onClick={toggleTheme}
             className="relative w-11 h-11 flex items-center justify-center rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/10 shadow-sm active:scale-90 transition-all outline-none overflow-hidden group"
           >
-            <div className="relative z-10 transition-transform duration-500 group-hover:rotate-[20deg]">
+            <div className="relative z-10 transition-transform duration-500 group-hover:rotate-20">
               {theme === 'light' ? (
                 <Moon className="w-5 h-5 text-indigo-600 fill-indigo-50" />
               ) : (
@@ -58,7 +58,13 @@ const MobileHeader = ({ className }) => {
           <Link to="/profile" className="relative w-11 h-11 rounded-2xl p-[2px] bg-gradient-to-tr from-rose-500 via-orange-500 to-purple-500 active:scale-90 transition-transform shadow-lg shadow-rose-500/20">
             <div className="w-full h-full bg-white dark:bg-slate-900 rounded-[0.9rem] flex items-center justify-center overflow-hidden border border-white/50 dark:border-slate-800">
               {user ? (
-                <img src={user.image} alt={user.name} className="w-full h-full object-cover" />
+                <img
+                  src={user.image}
+                  alt={user.name}
+                  crossOrigin="anonymous"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover"
+                />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-800">
                   <span className="text-slate-400 dark:text-slate-500 font-bold text-xs">Login</span>

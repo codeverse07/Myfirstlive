@@ -2,6 +2,8 @@ const User = require('../models/User');
 const TechnicianProfile = require('../models/TechnicianProfile');
 const Service = require('../models/Service');
 const Booking = require('../models/Booking');
+const Review = require('../models/Review');
+const Settings = require('../models/Settings');
 const AppError = require('../utils/AppError');
 const adminService = require('../services/adminService');
 
@@ -276,3 +278,77 @@ exports.cancelBooking = async (req, res, next) => {
         next(error);
     }
 };
+
+// --- GLOBAL SETTINGS ---
+exports.getSettings = async (req, res, next) => {
+    try {
+        let settings = await Settings.findOne({ isGlobal: true });
+
+        if (!settings) {
+            settings = await Settings.create({ isGlobal: true });
+        }
+
+        res.status(200).json({
+            status: 'success',
+            data: { settings }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.updateSettings = async (req, res, next) => {
+    try {
+        const settings = await Settings.findOneAndUpdate(
+            { isGlobal: true },
+            req.body,
+            { new: true, runValidators: true, upsert: true }
+        );
+
+        // LOG ACTION
+        await adminService.logAction({
+            adminId: req.user.id,
+            action: 'SETTINGS_UPDATE',
+            targetType: 'Settings',
+            targetId: settings._id,
+            details: req.body
+        });
+
+        res.status(200).json({
+            status: 'success',
+            data: { settings }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// --- REVIEW MODERATION ---
+exports.deleteReview = async (req, res, next) => {
+    try {
+        const review = await Review.findByIdAndDelete(req.params.id);
+
+        if (!review) {
+            return next(new AppError('No review found with that ID', 404));
+        }
+
+        // Ratings are recalculated automatically via Review.js post middleware
+
+        // LOG ACTION
+        await adminService.logAction({
+            adminId: req.user.id,
+            action: 'REVIEW_DELETE',
+            targetType: 'Review',
+            targetId: req.params.id,
+            details: { technicianId: review.technician }
+        });
+
+        res.status(204).json({
+            status: 'success',
+            data: null
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+

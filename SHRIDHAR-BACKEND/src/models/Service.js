@@ -38,7 +38,9 @@ const serviceSchema = new mongoose.Schema({
         default: true
     }
 }, {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
 });
 
 // serviceSchema.index({ technician: 1, isActive: 1 });

@@ -17,42 +17,53 @@ const TechnicianServices = () => {
     // Form State
     const [formData, setFormData] = useState({
         title: '',
-        category: 'Carpentry',
+        category: '',
         description: '',
         price: '',
         originalPrice: '',
         headerImage: null
     });
 
-    const CATEGORIES = [
-        'Carpentry',
-        'Plumbing',
-        'Electrical',
-        'Cleaning',
-        'HVAC',
-        'Painting',
-        'Appliances'
-    ];
+    const [categoriesList, setCategoriesList] = useState([]);
+    const [isRequestingCategory, setIsRequestingCategory] = useState(false);
+    const [requestName, setRequestName] = useState('');
+    const [requestMessage, setRequestMessage] = useState('');
+    const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+
+    const fetchInitialData = async () => {
+        if (!technicianProfile) return;
+        try {
+            setLoading(true);
+            const technicianId = technicianProfile?.user?._id || technicianProfile?.user;
+
+            // Parallel fetch categories and services
+            const [catsRes, servsRes] = await Promise.all([
+                client.get('/categories'),
+                technicianId ? client.get(`/services?technician=${technicianId}`) : Promise.resolve({ data: { data: { services: [] } } })
+            ]);
+
+            setCategoriesList(catsRes.data.data.categories || []);
+            setServices(servsRes.data.data.services || []);
+        } catch (err) {
+            console.error("Failed to fetch initial data", err);
+            toast.error("Failed to load categories or services");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        fetchServices();
-    }, []);
+        fetchInitialData();
+    }, [technicianProfile]);
 
     const fetchServices = async () => {
         try {
             const technicianId = technicianProfile?.user?._id || technicianProfile?.user;
-            if (!technicianId) {
-                // If no technician profile yet, just stop or set empty
-                setServices([]);
-                setLoading(false);
-                return;
-            }
+            if (!technicianId) return;
             const res = await client.get(`/services?technician=${technicianId}`);
             setServices(res.data.data.services);
         } catch (err) {
             console.error(err);
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -145,6 +156,28 @@ const TechnicianServices = () => {
         resetForm();
     };
 
+    const handleRequestCategory = async (e) => {
+        e.preventDefault();
+        if (!requestName) return;
+
+        setIsSubmittingRequest(true);
+        try {
+            await client.post('/feedbacks', {
+                category: 'Category Request',
+                message: requestMessage || `Interested in offering services in: ${requestName}`,
+                requestedCategoryName: requestName
+            });
+            toast.success('Your request has been sent to the admin!');
+            setIsRequestingCategory(false);
+            setRequestName('');
+            setRequestMessage('');
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to send request');
+        } finally {
+            setIsSubmittingRequest(false);
+        }
+    };
+
     // Helper to get preview URL safely
     const getPreviewUrl = () => {
         if (!formData.headerImage) return null;
@@ -220,15 +253,28 @@ const TechnicianServices = () => {
                                 required
                             />
 
-                            <div>
-                                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Category</label>
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Category</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsRequestingCategory(true)}
+                                        className="text-[10px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-700"
+                                    >
+                                        + Request New
+                                    </button>
+                                </div>
                                 <select
                                     id="category"
                                     value={formData.category}
                                     onChange={handleInputChange}
                                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none font-medium"
+                                    required
                                 >
-                                    {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                    <option value="" disabled>Select Category</option>
+                                    {categoriesList.map(cat => (
+                                        <option key={cat.id || cat._id} value={cat.name}>{cat.name}</option>
+                                    ))}
                                 </select>
                             </div>
 
@@ -300,7 +346,7 @@ const TechnicianServices = () => {
                                     id="description"
                                     value={formData.description}
                                     onChange={handleInputChange}
-                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none font-medium min-h-[100px]"
+                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none font-medium min-h-25"
                                     placeholder="Describe what you offer..."
                                     required
                                 />
@@ -311,6 +357,46 @@ const TechnicianServices = () => {
                                     {editingServiceId ? 'Update Service' : 'Create Service'}
                                 </Button>
                             </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Request Category Modal */}
+            {isRequestingCategory && (
+                <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md shadow-2xl p-6 md:p-8">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-black text-slate-900 dark:text-white">Request New Category</h3>
+                            <button onClick={() => setIsRequestingCategory(false)} className="p-2 hover:bg-slate-100 rounded-full">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleRequestCategory} className="space-y-4">
+                            <Input
+                                id="requestName"
+                                label="Requested Category Name"
+                                placeholder="e.g. Pet Grooming"
+                                value={requestName}
+                                onChange={(e) => setRequestName(e.target.value)}
+                                required
+                            />
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1.5">Brief Note (Optional)</label>
+                                <textarea
+                                    value={requestMessage}
+                                    onChange={(e) => setRequestMessage(e.target.value)}
+                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none font-medium min-h-25"
+                                    placeholder="Explain why this category is needed..."
+                                />
+                            </div>
+                            <Button
+                                type="submit"
+                                className="w-full h-12"
+                                disabled={isSubmittingRequest}
+                            >
+                                {isSubmittingRequest ? 'Sending...' : 'Send Request'}
+                            </Button>
                         </form>
                     </div>
                 </div>

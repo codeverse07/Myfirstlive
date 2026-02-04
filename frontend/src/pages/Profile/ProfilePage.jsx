@@ -16,6 +16,29 @@ const ProfilePage = () => {
   const [feedbackCategory, setFeedbackCategory] = React.useState('Improvements');
   const [isSubmittingFeedback, setIsSubmittingFeedback] = React.useState(false);
   const [feedbackSent, setFeedbackSent] = React.useState(false);
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = React.useState(false);
+  const [generatedAvatars, setGeneratedAvatars] = React.useState([]);
+
+  React.useEffect(() => {
+    if (isAvatarModalOpen) {
+      generateAvatars();
+    }
+  }, [isAvatarModalOpen]);
+
+  const generateAvatars = () => {
+    const seeds = Array.from({ length: 9 }, () => Math.random().toString(36).substring(7));
+    const newAvatars = seeds.map(seed => `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`);
+    setGeneratedAvatars(newAvatars);
+  };
+
+  const handleSelectAvatar = async (avatarUrl) => {
+    await updateProfile({ profilePhoto: avatarUrl });
+    setIsAvatarModalOpen(false);
+  };
+
+  const handleCameraClick = () => {
+    setIsAvatarModalOpen(true);
+  };
 
   const feedbackCategories = [
     { id: 'Improvements', icon: '✨' },
@@ -33,12 +56,26 @@ const ProfilePage = () => {
 
   if (!isAuthenticated && !user) return null; // Wait for redirect
 
+
+
   const handleEditProfile = () => {
     const newName = prompt('Enter your name:', user.name);
-    if (newName) {
-      updateProfile({ name: newName });
+    const newPhone = prompt('Enter your phone number:', user.phone || '');
+    const newAddress = prompt('Enter your primary address:', user.address || '');
+
+    const updates = {};
+    if (newName && newName !== user.name) updates.name = newName;
+    if (newPhone !== undefined && newPhone !== user.phone) updates.phone = newPhone;
+    if (newAddress !== undefined && newAddress !== user.address) updates.address = newAddress;
+
+    if (Object.keys(updates).length > 0) {
+      updateProfile(updates);
     }
   };
+
+
+
+
 
   const handleLogout = () => {
     if (window.confirm('Are you sure you want to logout?')) {
@@ -84,8 +121,15 @@ const ProfilePage = () => {
             <div className="bg-white dark:bg-[#0b0b14] rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800/50 overflow-hidden">
               <div className="h-24 bg-gradient-to-r from-rose-500/20 to-orange-500/20"></div>
               <div className="px-6 pb-6 text-center">
-                <div className="w-24 h-24 rounded-full border-4 border-white dark:border-[#0b0b14] shadow-xl mx-auto -mt-12 overflow-hidden bg-white dark:bg-slate-800 relative">
-                  <img src={user.image} alt={user.name} className="w-full h-full object-cover" />
+                <div className="w-24 h-24 rounded-full border-4 border-white dark:border-[#0b0b14] shadow-xl mx-auto -mt-12 overflow-hidden bg-white dark:bg-slate-800 relative group cursor-pointer" onClick={handleCameraClick}>
+                  <img
+                    src={user.profilePhoto?.startsWith('http') ? user.profilePhoto : `/uploads/users/${user.profilePhoto}`}
+                    alt={user.name}
+                    className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Settings className="w-6 h-6 text-white" />
+                  </div>
                   <div className="absolute bottom-1 right-1 bg-blue-500 p-1 rounded-full border-2 border-white dark:border-[#0b0b14]">
                     <Check className="w-3 h-3 text-white stroke-[4px]" />
                   </div>
@@ -271,8 +315,15 @@ const ProfilePage = () => {
             </div>
             <div className="px-6 pb-6 relative">
               <div className="flex flex-col items-center -mt-12 mb-4 gap-4">
-                <div className="w-24 h-24 rounded-full border-4 border-white dark:border-slate-900 shadow-md overflow-hidden bg-white dark:bg-slate-800 relative">
-                  <img src={user.image} alt={user.name} className="w-full h-full object-cover" />
+                <div className="w-24 h-24 rounded-full border-4 border-white dark:border-slate-900 shadow-md overflow-hidden bg-white dark:bg-slate-800 relative group cursor-pointer" onClick={handleCameraClick}>
+                  <img
+                    src={user.profilePhoto?.startsWith('http') ? user.profilePhoto : `/uploads/users/${user.profilePhoto}`}
+                    alt={user.name}
+                    className="w-full h-full object-cover group-hover:opacity-80 transition-opacity"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Settings className="w-6 h-6 text-white" />
+                  </div>
                   <div className="absolute bottom-1 right-1 bg-blue-500 p-1 rounded-full border-2 border-white dark:border-slate-900 shadow-lg">
                     <Check className="w-3 h-3 text-white stroke-[4px]" />
                   </div>
@@ -525,6 +576,46 @@ const ProfilePage = () => {
         </div>
 
       </div>
+
+
+      {/* Avatar Selection Modal */}
+      {isAvatarModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-4xl p-6 max-w-md w-full shadow-2xl scale-100 animate-scale-in border border-slate-100 dark:border-slate-800">
+            <h3 className="text-xl font-black text-slate-900 dark:text-white text-center mb-2">Choose Your Look</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-center text-sm mb-6">Select an avatar for your profile.</p>
+
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              {generatedAvatars.map((avatar, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleSelectAvatar(avatar)}
+                  className="aspect-square rounded-2xl bg-slate-50 dark:bg-slate-800 p-2 hover:scale-110 hover:shadow-lg transition-all border-2 border-transparent hover:border-rose-500"
+                >
+                  <img src={avatar} alt={`Avatar ${index}`} className="w-full h-full object-contain" />
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={generateAvatars}
+                className="w-full py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              >
+                Shuffle Avatars 🎲
+              </button>
+
+              <button
+                onClick={() => setIsAvatarModalOpen(false)}
+                className="mt-2 w-full py-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold uppercase tracking-widest transition-colors"
+                id="cancel-avatar-picker"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

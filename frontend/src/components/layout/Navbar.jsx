@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
-import { Menu, X, Wrench, User, Moon, Sun, Bot } from 'lucide-react';
+import { Menu, X, Wrench, User, Moon, Sun, Bot, MapPin } from 'lucide-react';
 import Button from '../common/Button';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
@@ -13,6 +13,10 @@ const Navbar = () => {
     const { theme, toggleTheme } = useTheme();
     const { setIsChatOpen, isAuthenticated } = useUser();
     const { playGlassSound } = useSound();
+    const [locationName, setLocationName] = useState(() => {
+        return localStorage.getItem('user_location') || null;
+    });
+    const [isLocating, setIsLocating] = useState(false);
 
     const isHomePage = location.pathname === '/';
 
@@ -84,6 +88,40 @@ const Navbar = () => {
                                 {link.name}
                             </NavLink>
                         ))}
+                    </div>
+
+                    {/* Location & Time Section */}
+                    <div className="hidden lg:flex items-center gap-6 mr-4">
+
+
+                        {/* Location Grabber */}
+                        <button
+                            disabled={isLocating}
+                            onClick={() => {
+                                if (navigator.geolocation) {
+                                    setIsLocating(true);
+                                    navigator.geolocation.getCurrentPosition(async (pos) => {
+                                        try {
+                                            const { latitude, longitude } = pos.coords;
+                                            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+                                            const data = await res.json();
+                                            const city = data.address.city || data.address.town || data.address.village || 'Location Found';
+                                            setLocationName(city);
+                                            localStorage.setItem('user_location', city);
+                                        } catch (e) {
+                                            console.error(e);
+                                            setLocationName('Error');
+                                        } finally {
+                                            setIsLocating(false);
+                                        }
+                                    }, () => setIsLocating(false));
+                                }
+                            }}
+                            className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors ${isTransparent ? 'text-white hover:text-blue-200' : 'text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400'}`}
+                        >
+                            <MapPin className={`w-3.5 h-3.5 ${isLocating ? 'animate-bounce' : ''}`} />
+                            <span>{isLocating ? 'Fetching...' : locationName || 'Detect'}</span>
+                        </button>
                     </div>
 
                     {/* Desktop Auth Buttons */}

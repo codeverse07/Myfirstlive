@@ -27,6 +27,13 @@ router.patch('/services/:id/status', adminController.toggleServiceStatus);
 router.get('/bookings', adminController.getAllBookings);
 router.patch('/bookings/:id/cancel', adminController.cancelBooking);
 
+// --- GLOBAL SETTINGS ---
+router.get('/settings', adminController.getSettings);
+router.patch('/settings', adminController.updateSettings);
+
+// --- REVIEW MODERATION ---
+router.delete('/reviews/:id', adminController.deleteReview);
+
 // Placeholder for future modules
 // router.use('/users', userModRoutes);
 

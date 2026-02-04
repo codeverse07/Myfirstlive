@@ -51,17 +51,28 @@ exports.createBooking = async (req, res, next) => {
         }
 
         // 4. Create Booking
-        const booking = await Booking.create({
+        let booking = await Booking.create({
             customer: req.user.id,
-            technician: service.technician._id, // Explicitly safe
+            technician: service.technician._id,
             service: serviceId,
             price: service.price,
             scheduledAt,
             notes,
-            userLocation: coordinates ? { type: 'Point', coordinates } : undefined,
+            userLocation: {
+                type: 'Point',
+                coordinates: coordinates || [0, 0],
+                address: req.body.address || req.body.pickupLocation
+            },
+            pickupLocation: req.body.pickupLocation,
+            dropLocation: req.body.dropLocation,
             distance,
             estimatedDuration
         });
+
+        // Populate for immediate frontend use
+        booking = await Booking.findById(booking._id)
+            .populate('service', 'title price category headerImage')
+            .populate('technician', 'name email phone profilePhoto');
 
         // 4. Send Notification to Technician
         await notificationService.send({
@@ -90,7 +101,7 @@ exports.getAllBookings = async (req, res, next) => {
 
         // Filter by user role context
         if (req.user.role === 'TECHNICIAN') {
-            filter.technician = req.user.id;
+            filter.technician = req.user._id;
         } else {
             filter.customer = req.user.id;
         }
@@ -106,7 +117,7 @@ exports.getAllBookings = async (req, res, next) => {
         }
 
         const bookings = await Booking.find(filter)
-            .populate('service', 'title price category')
+            .populate('service', 'title price category headerImage')
             .populate('customer', 'name email phone location profilePhoto')
             .populate('technician', 'name email phone profilePhoto')
             .populate('review')
@@ -127,9 +138,9 @@ exports.getAllBookings = async (req, res, next) => {
 exports.getBooking = async (req, res, next) => {
     try {
         const booking = await Booking.findById(req.params.bookingId)
-            .populate('service', 'title price category')
-            .populate('customer', 'name email')
-            .populate('technician', 'name email')
+            .populate('service', 'title price category headerImage')
+            .populate('customer', 'name email phone profilePhoto')
+            .populate('technician', 'name email phone profilePhoto')
             .populate('review');
 
         if (!booking) {

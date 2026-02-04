@@ -2,8 +2,9 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Star, ShieldCheck, CheckCircle, Sparkles, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import { useBookings } from '../../context/BookingContext';
-import { useAdmin } from '../../context/AdminContext';
+// import { useAdmin } from '../../context/AdminContext';
 import { useUser } from '../../context/UserContext'; // Added useUser import
 import { services as staticServices } from '../../data/mockData';
 
@@ -12,11 +13,11 @@ import basicImg from '../../assets/services/basic.png';
 import premiumImg from '../../assets/services/premium.png';
 import consultationImg from '../../assets/services/consultation.png';
 
-const MobileServiceDetail = ({ serviceId, onClose }) => {
+const MobileServiceDetail = ({ service, onClose }) => {
     const navigate = useNavigate();
     const { addBooking } = useBookings();
-    const { services } = useAdmin();
-    const { isAuthenticated, user } = useUser(); // Added user
+    // const { services } = useAdmin(); // REMOVED
+    const { isAuthenticated, user } = useUser();
 
     // Prevent background scrolling when modal is open
     React.useEffect(() => {
@@ -26,10 +27,12 @@ const MobileServiceDetail = ({ serviceId, onClose }) => {
         };
     }, []);
 
-    const service = services.find(s => s.id === (serviceId || 1)) || services[0];
+    // const service = services.find(s => s.id === (serviceId || 1)) || services[0]; // REMOVED: Using passed prop
+    if (!service) return null; // Safety check
     const [selectedSubService, setSelectedSubService] = React.useState(null);
-    const [pickupLocation, setPickupLocation] = React.useState(user?.addresses?.find(a => a.isPrimary)?.address || '');
+    const [pickupLocation, setPickupLocation] = React.useState(user?.address || '');
     const [dropLocation, setDropLocation] = React.useState('');
+    const { updateProfile } = useUser();
 
     const isShiftingOrTransport = service.category === 'houseshifting' || service.category === 'transport';
 
@@ -37,7 +40,6 @@ const MobileServiceDetail = ({ serviceId, onClose }) => {
     const activeSubServicesByAdmin = (service.subServices || []).filter(ss => ss.isActive);
 
     // Map the admin settings to the UI structure (with images)
-    // Safety Layer: Force filter for house shifting
     const subServices = activeSubServicesByAdmin
         .filter(ss => isShiftingOrTransport ? ss.id === 'consultation' : true)
         .map(ss => ({
@@ -54,7 +56,7 @@ const MobileServiceDetail = ({ serviceId, onClose }) => {
 
     const activeSubService = subServices.find(s => s.id === selectedSubService) || subServices[0];
 
-    const handleBooking = () => {
+    const handleBooking = async () => {
         if (!activeSubService) return;
 
         if (!isAuthenticated) {
@@ -63,13 +65,26 @@ const MobileServiceDetail = ({ serviceId, onClose }) => {
             return;
         }
 
+        // Mandatory address check
+        const targetAddress = isShiftingOrTransport ? pickupLocation : pickupLocation; // pickupLocation used as address for all mobile bookings
+        if (!targetAddress) {
+            toast.error('Please provide a service address');
+            return;
+        }
+
+        // Sync to profile if missing
+        if (!user?.address) {
+            await updateProfile({ address: targetAddress });
+        }
+
         addBooking({
-            serviceId: service.id,
+            serviceId: service.id || service._id,
             serviceName: service.title,
             subServiceName: activeSubService.name,
             price: activeSubService.price,
             image: service.image,
-            pickupLocation: isShiftingOrTransport ? pickupLocation : undefined,
+            address: targetAddress,
+            pickupLocation: isShiftingOrTransport ? pickupLocation : targetAddress,
             dropLocation: isShiftingOrTransport ? dropLocation : undefined
         });
         onClose();

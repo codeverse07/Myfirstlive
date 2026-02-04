@@ -78,15 +78,18 @@ exports.getAllServices = async (req, res, next) => {
         const activeTechUsers = await User.find({ role: 'TECHNICIAN', isActive: true }).select('_id');
         const activeTechUserIds = activeTechUsers.map(t => t._id);
 
-        // 2. Get all REJECTED technician user IDs
-        const rejectedProfiles = await TechnicianProfile.find({
+        // 2. Get all REJECTED or OFFLINE technician user IDs
+        const invalidProfiles = await TechnicianProfile.find({
             user: { $in: activeTechUserIds },
-            'documents.verificationStatus': 'REJECTED'
+            $or: [
+                { 'documents.verificationStatus': 'REJECTED' },
+                { isOnline: false }
+            ]
         }).select('user');
-        const rejectedUserIds = rejectedProfiles.map(p => p.user.toString());
+        const invalidUserIds = invalidProfiles.map(p => p.user.toString());
 
-        // 3. Allowed technicians = Active - Rejected
-        const allowedTechIds = activeTechUserIds.filter(id => !rejectedUserIds.includes(id.toString()));
+        // 3. Allowed technicians = Active - (Rejected + Offline)
+        const allowedTechIds = activeTechUserIds.filter(id => !invalidUserIds.includes(id.toString()));
 
         if (queryObj.technician) {
             // If filtering by specific tech, ensure that tech is allowed

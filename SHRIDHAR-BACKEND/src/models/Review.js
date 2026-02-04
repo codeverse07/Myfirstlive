@@ -102,6 +102,13 @@ reviewSchema.statics.calcAverageRatings = async function (technicianUserId) {
     }
 };
 
+// findOneAnd is used for findOneAndDelete
+reviewSchema.post(/^findOneAnd/, async function (doc) {
+    if (doc) {
+        await doc.constructor.calcAverageRatings(doc.technician);
+    }
+});
+
 reviewSchema.post('save', function () {
     // this points to current review
     this.constructor.calcAverageRatings(this.technician);

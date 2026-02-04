@@ -26,8 +26,11 @@ export const AdminProvider = ({ children }) => {
 
     const [services, setServices] = useState([]);
     const [technicians, setTechnicians] = useState([]);
+    const [users, setUsers] = useState([]);
     const [feedbacks, setFeedbacks] = useState([]);
     const [reviews, setReviews] = useState([]);
+    const [allBookings, setAllBookings] = useState([]);
+    const [dashboardStats, setDashboardStats] = useState(null);
 
     // Helper to transform backend service to frontend shape
     const transformService = (service) => {
@@ -93,6 +96,12 @@ export const AdminProvider = ({ children }) => {
 
     useEffect(() => {
         const fetchData = async () => {
+            // Only fetch data if authenticated as admin
+            if (!isAdminAuthenticated) {
+                setIsLoading(false);
+                return;
+            }
+
             setIsLoading(true);
             try {
                 // Fetch Categories
@@ -140,6 +149,12 @@ export const AdminProvider = ({ children }) => {
                     setTechnicians(rawTechnicians);
                 }
 
+                // Fetch Users
+                const usersRes = await client.get('/admin/users');
+                if (usersRes.data.data) {
+                    setUsers(usersRes.data.data.users || []);
+                }
+
                 // Fetch Feedbacks
                 const feedbackRes = await client.get('/feedbacks');
                 if (feedbackRes.data.data) {
@@ -151,15 +166,39 @@ export const AdminProvider = ({ children }) => {
                 if (reviewsRes.data.data) {
                     setReviews(reviewsRes.data.data.reviews || []);
                 }
+
+                // --- NEW FETCHES ---
+
+                // Fetch Settings
+                const settingsRes = await client.get('/admin/settings');
+                if (settingsRes.data.data && settingsRes.data.data.settings) {
+                    setAppSettings(settingsRes.data.data.settings);
+                }
+
+                // Fetch Stats
+                const statsRes = await client.get('/admin/dashboard-stats');
+                if (statsRes.data.data) {
+                    setDashboardStats(statsRes.data.data);
+                }
+
+                // Fetch All Bookings
+                const bookingsRes = await client.get('/admin/bookings');
+                if (bookingsRes.data.data) {
+                    setAllBookings(bookingsRes.data.data.bookings || []);
+                }
             } catch (err) {
                 console.error("Failed to fetch admin data", err);
+                if (err.response && err.response.status === 403) {
+                    // Automatically logout if 403 encountered during fetch (token invalid/expired for admin routes)
+                    setIsAdminAuthenticated(false);
+                }
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchData();
-    }, []);
+    }, [isAdminAuthenticated]);
 
     useEffect(() => {
         localStorage.setItem('admin_auth', isAdminAuthenticated);
@@ -199,11 +238,17 @@ export const AdminProvider = ({ children }) => {
         setIsAdminAuthenticated(false);
     };
 
-    const toggleSetting = (key) => {
-        setAppSettings(prev => ({
-            ...prev,
-            [key]: !prev[key]
-        }));
+    const toggleSetting = async (key) => {
+        const newValue = !appSettings[key];
+        setAppSettings(prev => ({ ...prev, [key]: newValue }));
+
+        try {
+            await client.patch('/admin/settings', { [key]: newValue });
+        } catch (err) {
+            console.error("Failed to sync setting", err);
+            // Revert on failure
+            setAppSettings(prev => ({ ...prev, [key]: !newValue }));
+        }
     };
 
     const addCategory = async (categoryData) => {
@@ -335,6 +380,68 @@ export const AdminProvider = ({ children }) => {
         }
     };
 
+    const approveTechnician = async (id) => {
+        try {
+            await client.patch(`/admin/technicians/${id}/approve`);
+            setTechnicians(prev => prev.map(t =>
+                t._id === id || t.id === id ? { ...t, documents: { ...t.documents, verificationStatus: 'VERIFIED' } } : t
+            ));
+            toast.success("Technician approved successfully");
+        } catch (err) {
+            console.error("Failed to approve technician", err);
+            toast.error("Failed to approve: " + (err.response?.data?.message || err.message));
+        }
+    };
+
+    const rejectTechnician = async (id) => {
+        try {
+            await client.patch(`/admin/technicians/${id}/reject`);
+            setTechnicians(prev => prev.map(t =>
+                t._id === id || t.id === id ? { ...t, documents: { ...t.documents, verificationStatus: 'REJECTED' } } : t
+            ));
+            toast.success("Technician rejected");
+        } catch (err) {
+            console.error("Failed to reject technician", err);
+            toast.error("Failed to reject: " + (err.response?.data?.message || err.message));
+        }
+    };
+
+    const toggleUserStatus = async (id, currentStatus) => {
+        try {
+            await client.patch(`/admin/users/${id}/status`, { isActive: !currentStatus });
+            setUsers(prev => prev.map(u =>
+                u._id === id || u.id === id ? { ...u, isActive: !currentStatus } : u
+            ));
+            toast.success(`User ${!currentStatus ? 'activated' : 'blocked'} successfully`);
+        } catch (err) {
+            console.error("Failed to update user status", err);
+            toast.error("Failed to update status");
+        }
+    };
+
+    const deleteReview = async (id) => {
+        try {
+            await client.delete(`/admin/reviews/${id}`);
+            setReviews(prev => prev.filter(r => r._id !== id));
+            toast.success("Review deleted successfully");
+        } catch (err) {
+            console.error("Failed to delete review", err);
+            toast.error("Failed to delete review");
+        }
+    };
+
+    const cancelBooking = async (id) => {
+        try {
+            const res = await client.patch(`/admin/bookings/${id}/cancel`);
+            const updatedBooking = res.data.data.booking;
+            setAllBookings(prev => prev.map(b => b._id === id ? updatedBooking : b));
+            toast.success("Booking forced to CANCELLED");
+        } catch (err) {
+            console.error("Failed to cancel booking", err);
+            toast.error("Failed to cancel booking");
+        }
+    };
+
     return (
         <AdminContext.Provider value={{
             isAdminAuthenticated,
@@ -354,7 +461,15 @@ export const AdminProvider = ({ children }) => {
             updateSubServicePrice,
             toggleSubService,
             updateTechnician,
-            addTechnician
+            addTechnician,
+            approveTechnician,
+            rejectTechnician,
+            users,
+            toggleUserStatus,
+            allBookings,
+            dashboardStats,
+            deleteReview,
+            cancelBooking
         }}>
             {children}
         </AdminContext.Provider>

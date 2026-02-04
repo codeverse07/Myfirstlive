@@ -1,5 +1,5 @@
 import React from 'react';
-import { bookings } from '../../data/mockData';
+
 import MobileBottomNav from '../../components/mobile/MobileBottomNav';
 import { ArrowLeft, Clock, Calendar, MessageSquare, Phone, Mail, Star, Eye, HelpCircle, ShieldCheck, Sparkles, MapPin, ChevronRight } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -26,9 +26,10 @@ const MobileBookingsPage = () => {
 
     // Filter bookings based on status
     const filteredBookings = React.useMemo(() => contextBookings.filter(b => {
-        if (activeStatus === 'Pending') return b.status === 'Pending';
-        if (activeStatus === 'Assigned') return b.status === 'Assigned';
-        if (activeStatus === 'Completed') return b.status === 'Completed';
+        const status = b.status?.toUpperCase() || 'PENDING';
+        if (activeStatus === 'Pending') return status === 'PENDING';
+        if (activeStatus === 'Assigned') return ['ASSIGNED', 'ACCEPTED', 'IN_PROGRESS'].includes(status);
+        if (activeStatus === 'Completed') return ['COMPLETED', 'CANCELLED'].includes(status);
         return true;
     }), [contextBookings, activeStatus]);
 
@@ -73,16 +74,16 @@ const MobileBookingsPage = () => {
 
     // Counts for tabs
     const counts = {
-        Pending: contextBookings.filter(b => b.status === 'Pending').length,
-        Assigned: contextBookings.filter(b => b.status === 'Assigned').length,
-        Completed: contextBookings.filter(b => b.status === 'Completed').length,
+        Pending: contextBookings.filter(b => (b.status?.toUpperCase() || 'PENDING') === 'PENDING').length,
+        Assigned: contextBookings.filter(b => ['ASSIGNED', 'ACCEPTED', 'IN_PROGRESS'].includes(b.status?.toUpperCase())).length,
+        Completed: contextBookings.filter(b => ['COMPLETED', 'CANCELLED'].includes(b.status?.toUpperCase())).length,
     };
 
     const tabs = ['Pending', 'Assigned', 'Completed'];
 
     return (
         <div className="min-h-screen bg-white dark:bg-slate-950 pb-24 font-sans transition-colors duration-300 relative overflow-hidden">
-            {/* Futuristic Background Decorations */}
+            {/* ... (Header and decorations - unchanged) ... */}
             <div className="fixed inset-0 pointer-events-none z-0">
                 <div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1.5px,transparent_1.5px)] dark:bg-[radial-gradient(#1e293b_1.5px,transparent_1.5px)] [background-size:24px_24px] opacity-40" />
             </div>
@@ -106,7 +107,7 @@ const MobileBookingsPage = () => {
 
             {/* Header Content */}
             <div className="px-4 pt-8 pb-6 relative">
-
+                {/* ... (Welcome text etc - unchanged) ... */}
                 <h1 className="text-2xl font-black text-slate-900 dark:text-white mb-1 tracking-tight">
                     Welcome, {user.name.split(' ')[0]} <span className="inline-block animate-wave">👋</span>
                 </h1>
@@ -114,6 +115,7 @@ const MobileBookingsPage = () => {
 
                 {/* Quick Stats - Futuristic Slates */}
                 <div className="grid grid-cols-3 gap-3 mb-6">
+                    {/* ... (Pending/Assigned stats - unchanged) ... */}
                     <div className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-md p-4 rounded-3xl border border-gray-100/50 dark:border-slate-800/50 shadow-[0_4px_20px_rgba(0,0,0,0.03)] relative overflow-hidden group transition-all duration-300">
                         <div className="absolute top-0 left-0 w-1 h-full bg-rose-500" />
                         <p className="text-[9px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest mb-2 opacity-80">Ongoing</p>
@@ -134,7 +136,7 @@ const MobileBookingsPage = () => {
 
                     <div className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-md p-4 rounded-3xl border border-gray-100/50 dark:border-slate-800/50 shadow-[0_4px_20px_rgba(0,0,0,0.03)] relative overflow-hidden group transition-all duration-300">
                         <div className="absolute top-0 left-0 w-1 h-full bg-green-500" />
-                        <p className="text-[9px] font-black text-green-600 dark:text-green-400 uppercase tracking-widest mb-2 opacity-80">History</p>
+                        <p className="text-[9px] font-black text-green-600 dark:text-green-400 uppercase tracking-widest mb-2 opacity-80">Completed</p>
                         <div className="flex items-end justify-between">
                             <p className="text-2xl font-black text-slate-900 dark:text-white leading-none">{counts.Completed}</p>
                             <ShieldCheck className="w-4 h-4 text-slate-200 dark:text-slate-800" />
@@ -157,7 +159,7 @@ const MobileBookingsPage = () => {
                         <button
                             key={tab}
                             onClick={() => setActiveStatus(tab)}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl text-sm font-bold transition-all duration-300 ${activeStatus === tab
+                            className={`relative flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl text-sm font-bold transition-all duration-300 ${activeStatus === tab
                                 ? 'bg-rose-600 text-white shadow-md shadow-rose-500/25'
                                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                                 }`}
@@ -169,6 +171,9 @@ const MobileBookingsPage = () => {
                                 }`}>
                                 {counts[tab]}
                             </span>
+                            {tab === 'Assigned' && counts.Assigned > 0 && (
+                                <span className="absolute top-1 right-3 w-2 h-2 bg-yellow-400 rounded-full animate-pulse shadow-sm shadow-yellow-400/50" />
+                            )}
                         </button>
                     ))}
                 </div>
@@ -207,7 +212,7 @@ const MobileBookingsPage = () => {
                                         {/* Service Info */}
                                         <div className="flex gap-4">
                                             <div className="w-20 h-20 rounded-2xl bg-slate-100 dark:bg-slate-800 shrink-0 overflow-hidden shadow-sm">
-                                                <img src={booking.image} alt={booking.serviceName} className="w-full h-full object-cover" />
+                                                <img src={booking.service?.headerImage || booking.image || booking.service?.image} alt={booking.serviceName} className="w-full h-full object-cover" />
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex justify-between items-start mb-1">
@@ -244,7 +249,15 @@ const MobileBookingsPage = () => {
                                                 >
                                                     <div className="flex items-center gap-3">
                                                         <div className="relative">
-                                                            <img src={booking.technician.image} alt={booking.technician.name} className="w-14 h-14 rounded-2xl object-cover border-2 border-white dark:border-slate-800 shadow-md group-hover:border-indigo-500/30 transition-colors" />
+                                                            <img
+                                                                src={booking.technician.image}
+                                                                alt={booking.technician.name}
+                                                                className="w-14 h-14 rounded-2xl object-cover border-2 border-white dark:border-slate-800 shadow-md group-hover:border-indigo-500/30 transition-colors"
+                                                                onError={(e) => {
+                                                                    e.target.onerror = null;
+                                                                    e.target.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(booking.technician.name) + '&background=random';
+                                                                }}
+                                                            />
                                                             <div className="absolute -bottom-1 -right-1 bg-green-500 w-4 h-4 rounded-full border-2 border-white dark:border-slate-900 shadow-sm animate-pulse"></div>
                                                         </div>
                                                         <div>
@@ -287,14 +300,14 @@ const MobileBookingsPage = () => {
 
                                         {/* Actions */}
                                         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-50 dark:border-slate-800/50">
-                                            {booking.status === 'Pending' ? (
+                                            {['Pending', 'PENDING'].includes(booking.status) ? (
                                                 <button
                                                     onClick={() => cancelBooking(booking.id)}
                                                     className="py-3 text-xs font-bold text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900/30 rounded-2xl hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors flex items-center justify-center gap-2"
                                                 >
                                                     Cancel Booking
                                                 </button>
-                                            ) : booking.status === 'Assigned' ? (
+                                            ) : ['Assigned', 'ACCEPTED', 'IN_PROGRESS'].includes(booking.status) ? (
                                                 <button
                                                     onClick={() => updateBookingStatus(booking.id, 'Completed')}
                                                     className="py-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/30 rounded-2xl hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-colors flex items-center justify-center gap-2"
@@ -312,26 +325,7 @@ const MobileBookingsPage = () => {
                                                 >
                                                     Rate Service
                                                 </button>
-                                            ) : (
-                                                <button
-                                                    onClick={() => setIsChatOpen(true)}
-                                                    className="py-3 text-xs font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
-                                                >
-                                                    <HelpCircle className="w-4 h-4" />
-                                                    Need Help?
-                                                </button>
-                                            )}
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedBooking(booking);
-                                                    setFocusTechnician(false);
-                                                    setIsDetailOpen(true);
-                                                }}
-                                                className="py-3 text-xs font-bold text-white bg-slate-900 dark:bg-slate-800 rounded-2xl hover:opacity-90 transition-all shadow-lg shadow-slate-900/20 md:shadow-none flex items-center justify-center gap-2"
-                                            >
-                                                <Eye className="w-4 h-4" />
-                                                View Details
-                                            </button>
+                                            ) : null}
                                         </div>
                                     </div>
                                 </motion.div>
@@ -365,10 +359,6 @@ const MobileBookingsPage = () => {
                 focusTechnician={focusTechnician}
                 onClose={() => setIsDetailOpen(false)}
                 onUpdateStatus={updateBookingStatus}
-                onHelp={() => {
-                    setIsDetailOpen(false);
-                    setIsChatOpen(true);
-                }}
             />
         </div>
     );

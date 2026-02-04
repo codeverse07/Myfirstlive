@@ -11,16 +11,20 @@ const BookingModal = ({ isOpen, onClose, service, onConfirm }) => {
         date: '',
         time: '',
         description: '',
-        pickupLocation: user?.addresses?.find(a => a.isPrimary)?.address || '',
+        address: user?.address || '',
+        pickupLocation: user?.address || '',
         dropLocation: ''
     });
 
-    // Update pickup location if user data loads or changes
+    const { updateProfile } = useUser();
+
+    // Update address if user data loads
     React.useEffect(() => {
-        if (user?.addresses?.find(a => a.isPrimary)) {
+        if (user?.address && !formData.address) {
             setFormData(prev => ({
                 ...prev,
-                pickupLocation: prev.pickupLocation || user.addresses.find(a => a.isPrimary).address
+                address: user.address,
+                pickupLocation: prev.pickupLocation || user.address
             }));
         }
     }, [user, isOpen]);
@@ -33,21 +37,21 @@ const BookingModal = ({ isOpen, onClose, service, onConfirm }) => {
         e.preventDefault();
         setIsLoading(true);
 
+        // If user didn't have an address before, update their profile
+        if (!user?.address && formData.address) {
+            await updateProfile({ address: formData.address });
+        }
+
         // Simulate network delay
         setTimeout(() => {
             const bookingData = {
                 ...formData,
-                serviceId: service.id,
+                serviceId: service._id || service.id,
                 serviceName: service.title,
                 image: service.image,
-                price: service.price
+                price: service.price,
+                // address is already in formData
             };
-
-            // Only include shifting-specific fields for relevant services
-            if (!isShiftingOrTransport) {
-                delete bookingData.dropLocation;
-                delete bookingData.pickupLocation;
-            }
 
             onConfirm(bookingData);
             setIsLoading(false);
@@ -81,22 +85,35 @@ const BookingModal = ({ isOpen, onClose, service, onConfirm }) => {
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-4">
-                        <Input
-                            label="Preferred Date"
-                            type="date"
-                            icon={Calendar}
-                            value={formData.date}
-                            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                            required
-                        />
-                        <Input
-                            label="Preferred Time"
-                            type="time"
-                            icon={Clock}
-                            value={formData.time}
-                            onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                            required
-                        />
+                        <div className="grid grid-cols-2 gap-4">
+                            <Input
+                                label="Preferred Date"
+                                type="date"
+                                icon={Calendar}
+                                value={formData.date}
+                                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                required
+                            />
+                            <Input
+                                label="Preferred Time"
+                                type="time"
+                                icon={Clock}
+                                value={formData.time}
+                                onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                                required
+                            />
+                        </div>
+
+                        {!isShiftingOrTransport && (
+                            <Input
+                                label="Service Address"
+                                placeholder="Enter full address for service"
+                                icon={MapPin}
+                                value={formData.address}
+                                onChange={(e) => setFormData({ ...formData, address: e.target.value, pickupLocation: e.target.value })}
+                                required
+                            />
+                        )}
 
                         {isShiftingOrTransport && (
                             <>
@@ -105,7 +122,7 @@ const BookingModal = ({ isOpen, onClose, service, onConfirm }) => {
                                     placeholder="Enter origin address"
                                     icon={MapPin}
                                     value={formData.pickupLocation}
-                                    onChange={(e) => setFormData({ ...formData, pickupLocation: e.target.value })}
+                                    onChange={(e) => setFormData({ ...formData, pickupLocation: e.target.value, address: e.target.value })}
                                     required
                                 />
                                 <Input
@@ -120,15 +137,15 @@ const BookingModal = ({ isOpen, onClose, service, onConfirm }) => {
                         )}
                         <div className="space-y-1.5">
                             <label className="block text-sm font-medium text-slate-700 ml-1">
-                                Description
+                                Additional Notes
                             </label>
                             <div className="relative">
                                 <div className="absolute top-3 left-4 text-slate-400">
                                     <FileText className="w-5 h-5" />
                                 </div>
                                 <textarea
-                                    className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-900 placeholder:text-slate-400 min-h-[100px] resize-none"
-                                    placeholder="Describe your issue or requirements..."
+                                    className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-900 placeholder:text-slate-400 min-h-20 resize-none text-sm"
+                                    placeholder="Any specific instructions..."
                                     value={formData.description}
                                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                 />

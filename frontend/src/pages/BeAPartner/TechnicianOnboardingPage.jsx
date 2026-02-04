@@ -41,6 +41,13 @@ const TechnicianOnboardingPage = () => {
     const [profilePhoto, setProfilePhoto] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
 
+    // Document State
+    const [aadharCard, setAadharCard] = useState(null);
+    const [panCard, setPanCard] = useState(null);
+    const [resume, setResume] = useState(null);
+
+    const { uploadDocuments } = useTechnician();
+
     const handleSkillToggle = (skill) => {
         setSelectedSkills(prev =>
             prev.includes(skill)
@@ -96,14 +103,35 @@ const TechnicianOnboardingPage = () => {
         }
 
         setIsLoading(true);
-        const result = await createProfile({
-            bio,
+
+        // 1. Create Basic Profile
+        const profileResult = await createProfile({
+            bio: bio || "Professional Technician", // Default bio if empty
             skills: selectedSkills,
             location,
             profilePhoto
         });
 
-        if (result.success) {
+        if (!profileResult.success) {
+            setIsLoading(false);
+            return;
+        }
+
+        // 2. Upload Mandatory Documents
+        if (!aadharCard || !panCard) {
+            toast.error("Aadhaar Card and PAN Card are mandatory for verification");
+            setIsLoading(false);
+            return;
+        }
+
+        const docResult = await uploadDocuments({
+            aadharCard,
+            panCard,
+            resume // Optional
+        });
+
+        if (docResult.success) {
+            toast.success("Onboarding complete! Your profile is under review.");
             navigate('/technician/dashboard');
         }
         setIsLoading(false);
@@ -140,7 +168,7 @@ const TechnicianOnboardingPage = () => {
 
                     {/* Bio */}
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">About You</label>
+                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">About You (Optional)</label>
                         <textarea
                             rows="4"
                             className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border-transparent focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 focus:ring-0 transition-all resize-none"
@@ -199,6 +227,55 @@ const TechnicianOnboardingPage = () => {
                             >
                                 {locationStatus === 'loading' ? <Loader className="w-4 h-4 animate-spin" /> : 'Detect'}
                             </Button>
+                        </div>
+                    </div>
+
+                    {/* Document Uploads */}
+                    <div className="space-y-6">
+                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Verification Documents</label>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Aadhaar */}
+                            <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-400 transition-colors cursor-pointer relative">
+                                <input required type="file" accept="image/*,application/pdf" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => setAadharCard(e.target.files[0])} />
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${aadharCard ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400'}`}>
+                                        <Upload className="w-5 h-5" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{aadharCard ? aadharCard.name : 'Aadhaar Card *'}</p>
+                                        <p className="text-[10px] text-slate-500 uppercase font-black">Mandatory</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* PAN */}
+                            <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-400 transition-colors cursor-pointer relative">
+                                <input required type="file" accept="image/*,application/pdf" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => setPanCard(e.target.files[0])} />
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${panCard ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400'}`}>
+                                        <Upload className="w-5 h-5" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{panCard ? panCard.name : 'PAN Card *'}</p>
+                                        <p className="text-[10px] text-slate-500 uppercase font-black">Mandatory</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Resume */}
+                            <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-400 transition-colors cursor-pointer relative md:col-span-2">
+                                <input type="file" accept=".pdf,.doc,.docx" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => setResume(e.target.files[0])} />
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${resume ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-400'}`}>
+                                        <Upload className="w-5 h-5" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{resume ? resume.name : 'CV / Resume (Optional)'}</p>
+                                        <p className="text-[10px] text-slate-500 uppercase font-black">Optional</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 

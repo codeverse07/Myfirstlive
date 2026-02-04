@@ -30,6 +30,7 @@ import PartnerLandingPage from './pages/BeAPartner/PartnerLandingPage';
 import TechnicianRegisterPage from './pages/BeAPartner/TechnicianRegisterPage';
 import TechnicianOnboardingPage from './pages/BeAPartner/TechnicianOnboardingPage';
 import TechnicianDashboard from './pages/Technician/TechnicianDashboard';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 import './App.css';
 
 function AnimatedRoutes() {
@@ -89,12 +90,24 @@ function AnimatedRoutes() {
             {/* Technician Routes */}
             <Route path="/partner" element={<PartnerLandingPage />} />
             <Route path="/partner/register" element={<TechnicianRegisterPage />} />
-            <Route path="/technician/onboarding" element={<TechnicianOnboardingPage />} />
-            <Route path="/technician/dashboard" element={<TechnicianDashboard />} />
+            <Route path="/technician/onboarding" element={
+              <ProtectedRoute allowedRoles={['TECHNICIAN']}>
+                <TechnicianOnboardingPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/technician/dashboard" element={
+              <ProtectedRoute allowedRoles={['TECHNICIAN']}>
+                <TechnicianDashboard />
+              </ProtectedRoute>
+            } />
 
             {/* Isolated Admin Routes */}
             <Route path="/admin/login" element={<AdminLoginPage />} />
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/dashboard" element={
+              <ProtectedRoute allowedRoles={['ADMIN']}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } />
             <Route path="/admin" element={<AdminLoginPage />} />
           </Routes>
         </motion.div>
