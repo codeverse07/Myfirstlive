@@ -66,11 +66,11 @@ const MobileServiceDetail = ({ service, onClose }) => {
         }
 
         // Mandatory address check
-        const targetAddress = isShiftingOrTransport ? pickupLocation : pickupLocation; // pickupLocation used as address for all mobile bookings
-        if (!targetAddress) {
+        if (!pickupLocation) {
             toast.error('Please provide a service address');
             return;
         }
+        const targetAddress = pickupLocation;
 
         // Sync to profile if missing
         if (!user?.address) {
@@ -97,12 +97,12 @@ const MobileServiceDetail = ({ service, onClose }) => {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed inset-0 z-[60] bg-white dark:bg-slate-950 flex flex-col"
+            className="fixed inset-0 z-60 bg-white dark:bg-slate-950 flex flex-col"
         >
             {/* Header */}
             <div className="relative h-64 overflow-hidden">
                 <img src={service.image} className="w-full h-full object-cover" alt={service.title} />
-                <div className="absolute inset-0 bg-gradient-to-t from-white dark:from-slate-950 via-transparent to-transparent" />
+                <div className="absolute inset-0 bg-linear-to-t from-white dark:from-slate-950 via-transparent to-transparent" />
                 <button
                     onClick={onClose}
                     className="absolute top-6 left-4 p-2.5 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md rounded-2xl shadow-lg active:scale-95 transition-all text-slate-900 dark:text-white"
@@ -142,7 +142,7 @@ const MobileServiceDetail = ({ service, onClose }) => {
                                 <button
                                     key={sub.id}
                                     onClick={() => setSelectedSubService(sub.id)}
-                                    className={`relative p-5 rounded-[2rem] border-2 transition-all duration-300 text-left group flex items-center gap-4 ${selectedSubService === sub.id
+                                    className={`relative p-5 rounded-4xl border-2 transition-all duration-300 text-left group flex items-center gap-4 ${selectedSubService === sub.id
                                         ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/10'
                                         : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900'
                                         }`}
@@ -169,23 +169,24 @@ const MobileServiceDetail = ({ service, onClose }) => {
                         </div>
                     </div>
 
-                    {isShiftingOrTransport && (
-                        <div className="p-6 bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-900/30 rounded-[2.5rem] shadow-sm space-y-4">
-                            <div className="space-y-3">
-                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
-                                    <MapPin className="w-5 h-5 text-rose-500" /> Pickup Location
-                                </h4>
-                                <div className="relative">
-                                    <input
-                                        type="text"
-                                        placeholder="Enter origin address"
-                                        value={pickupLocation}
-                                        onChange={(e) => setPickupLocation(e.target.value)}
-                                        className="w-full pl-0 pr-4 py-2 bg-transparent border-b-2 border-slate-100 dark:border-slate-800 focus:border-indigo-500 outline-none text-slate-900 dark:text-white font-bold transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700"
-                                    />
-                                </div>
+                    <div className="p-6 bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-900/30 rounded-[2.5rem] shadow-sm space-y-4">
+                        <div className="space-y-3">
+                            <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
+                                <MapPin className={`w-5 h-5 ${isShiftingOrTransport ? 'text-rose-500' : 'text-indigo-600'}`} />
+                                {isShiftingOrTransport ? 'Pickup Location' : 'Service Address'}
+                            </h4>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    placeholder={isShiftingOrTransport ? "Enter origin address" : "Where should we come?"}
+                                    value={pickupLocation}
+                                    onChange={(e) => setPickupLocation(e.target.value)}
+                                    className="w-full pl-0 pr-4 py-2 bg-transparent border-b-2 border-slate-100 dark:border-slate-800 focus:border-indigo-500 outline-none text-slate-900 dark:text-white font-bold transition-all placeholder:text-slate-300 dark:placeholder:text-slate-700"
+                                />
                             </div>
+                        </div>
 
+                        {isShiftingOrTransport && (
                             <div className="space-y-3">
                                 <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
                                     <MapPin className="w-5 h-5 text-indigo-600" /> Drop Location
@@ -200,10 +201,15 @@ const MobileServiceDetail = ({ service, onClose }) => {
                                     />
                                 </div>
                             </div>
+                        )}
 
+                        {!isShiftingOrTransport && (
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Enter the location where you need this service</p>
+                        )}
+                        {isShiftingOrTransport && (
                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Required for accurate distance-based pricing</p>
-                        </div>
-                    )}
+                        )}
+                    </div>
 
                     {isShiftingOrTransport && (
                         <div className="p-5 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/20 rounded-2xl">
@@ -243,7 +249,7 @@ const MobileServiceDetail = ({ service, onClose }) => {
                 <button
                     onClick={handleBooking}
                     disabled={!activeSubService}
-                    className="w-full h-16 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-[2rem] font-black text-lg shadow-xl shadow-slate-900/10 dark:shadow-white/5 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:active:scale-100"
+                    className="w-full h-16 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-4xl font-black text-lg shadow-xl shadow-slate-900/10 dark:shadow-white/5 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:active:scale-100"
                 >
                     Book {activeSubService?.name || 'Service'} • ₹{activeSubService?.price || service.price}
                 </button>

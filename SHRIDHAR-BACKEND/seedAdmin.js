@@ -22,8 +22,8 @@ const seedAdmin = async () => {
 
         const admin = await User.create({
             name: 'Super Admin',
-            email: 'admin@shridhar.com',
-            password: 'adminpassword123',
+                email: 'admin@shridhar.com',
+                password: 'adminpassword123',
             role: 'ADMIN',
             phone: '0000000000',
             isTechnicianOnboarded: true

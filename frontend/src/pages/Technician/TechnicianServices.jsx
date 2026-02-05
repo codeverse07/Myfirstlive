@@ -79,7 +79,7 @@ const TechnicianServices = () => {
     const resetForm = () => {
         setFormData({
             title: '',
-            category: 'Carpentry',
+            category: '',
             description: '',
             price: '',
             originalPrice: '',
@@ -218,7 +218,8 @@ const TechnicianServices = () => {
                                 service={{
                                     ...service,
                                     id: service._id,
-                                    rating: 4.8,
+                                    rating: service.rating || 0,
+                                    reviews: service.reviewCount || 0,
                                     image: service.headerImage || 'https://images.unsplash.com/photo-1581578731117-104f2a41d58e?auto=format&fit=crop&q=80&w=1000'
                                 }}
                                 onEdit={handleEditClick}
@@ -268,7 +269,7 @@ const TechnicianServices = () => {
                                     id="category"
                                     value={formData.category}
                                     onChange={handleInputChange}
-                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none font-medium"
+                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none font-medium"
                                     required
                                 >
                                     <option value="" disabled>Select Category</option>
@@ -346,7 +347,7 @@ const TechnicianServices = () => {
                                     id="description"
                                     value={formData.description}
                                     onChange={handleInputChange}
-                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none font-medium min-h-25"
+                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none font-medium min-h-25"
                                     placeholder="Describe what you offer..."
                                     required
                                 />
@@ -386,7 +387,7 @@ const TechnicianServices = () => {
                                 <textarea
                                     value={requestMessage}
                                     onChange={(e) => setRequestMessage(e.target.value)}
-                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none font-medium min-h-25"
+                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all outline-none font-medium min-h-25"
                                     placeholder="Explain why this category is needed..."
                                 />
                             </div>

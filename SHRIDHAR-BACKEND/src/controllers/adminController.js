@@ -17,9 +17,10 @@ exports.getDashboardStats = async (req, res, next) => {
             totalServices,
             totalBookings,
             pendingApprovals,
-            todaysBookings
+            todaysBookings,
+            revenueResult
         ] = await Promise.all([
-            User.countDocuments({ role: 'USER' }), // Only count regular users? Or all? Let's count regular users.
+            User.countDocuments({ role: 'USER' }),
             User.countDocuments({ role: 'TECHNICIAN' }),
             TechnicianProfile.countDocuments({ isOnline: true }),
             Service.countDocuments(),
@@ -30,7 +31,11 @@ exports.getDashboardStats = async (req, res, next) => {
                     $gte: new Date(new Date().setHours(0, 0, 0, 0)),
                     $lt: new Date(new Date().setHours(23, 59, 59, 999))
                 }
-            })
+            }),
+            Booking.aggregate([
+                { $match: { status: 'COMPLETED' } },
+                { $group: { _id: null, total: { $sum: '$price' } } }
+            ])
         ]);
 
         res.status(200).json({
@@ -42,7 +47,8 @@ exports.getDashboardStats = async (req, res, next) => {
                 totalServices,
                 totalBookings,
                 pendingApprovals,
-                todaysBookings
+                todaysBookings,
+                totalRevenue: revenueResult[0]?.total || 0
             }
         });
 

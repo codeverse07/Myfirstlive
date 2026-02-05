@@ -142,8 +142,8 @@ const AdminDashboard = () => {
                                 {[
                                     { label: 'Total Users', value: dashboardStats?.totalUsers || 0, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
                                     { label: 'Technicians', value: dashboardStats?.totalTechnicians || 0, icon: Wrench, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-                                    { label: 'Active Tasks', value: dashboardStats?.totalBookings || 0, icon: Zap, color: 'text-amber-600', bg: 'bg-amber-50' },
-                                    { label: 'New Requests', value: dashboardStats?.pendingApprovals || 0, icon: Shield, color: 'text-emerald-600', bg: 'bg-emerald-50' }
+                                    { label: 'Total Revenue', value: `₹${(dashboardStats?.totalRevenue || 0).toLocaleString()}`, icon: Wallet, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                                    { label: 'Pending Docs', value: dashboardStats?.pendingApprovals || 0, icon: Shield, color: 'text-amber-600', bg: 'bg-amber-50' }
                                 ].map((stat, i) => (
                                     <div key={i} className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
                                         <div className={`w-10 h-10 ${stat.bg} ${stat.color} rounded-xl flex items-center justify-center mb-3`}>
@@ -504,6 +504,8 @@ const AdminDashboard = () => {
                                                 <th className="text-left p-5 text-[10px] font-black uppercase text-slate-400">Order</th>
                                                 <th className="text-left p-5 text-[10px] font-black uppercase text-slate-400">Customer</th>
                                                 <th className="text-left p-5 text-[10px] font-black uppercase text-slate-400">Expert</th>
+                                                <th className="text-left p-5 text-[10px] font-black uppercase text-slate-400">Scheduled At</th>
+                                                <th className="text-left p-5 text-[10px] font-black uppercase text-slate-400">Price</th>
                                                 <th className="text-left p-5 text-[10px] font-black uppercase text-slate-400">Status</th>
                                                 <th className="text-right p-5 text-[10px] font-black uppercase text-slate-400">Action</th>
                                             </tr>
@@ -517,6 +519,10 @@ const AdminDashboard = () => {
                                                     </td>
                                                     <td className="p-5 text-sm font-medium text-slate-600 dark:text-slate-400">{booking.customer?.name}</td>
                                                     <td className="p-5 text-sm font-medium text-slate-600 dark:text-slate-400">{booking.technician?.name}</td>
+                                                    <td className="p-5 text-[10px] font-black text-slate-500 uppercase">
+                                                        {new Date(booking.scheduledAt).toLocaleDateString()} at {new Date(booking.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </td>
+                                                    <td className="p-5 text-xs font-black text-slate-900 dark:text-white">₹{booking.price}</td>
                                                     <td className="p-5">
                                                         <span className={`px-2 py-1 rounded text-[9px] font-black uppercase ${booking.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : (booking.status === 'CANCELLED' ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700')}`}>
                                                             {booking.status}

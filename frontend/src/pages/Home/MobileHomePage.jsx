@@ -301,8 +301,8 @@ const MobileHomePage = ({ services = [], categories = [] }) => {
                 <div
                   key={uniqueKey}
                   data-id={uniqueKey}
-                  onClick={() => setSelectedServiceId(service.id)}
-                  className={`zoom-card relative rounded-4xl ring-1 ring-transparent dark:ring-white/5 transition-all duration-300 transform rotating-border-home ${String(activeCardId) === String(service.id) ? 'active scale-[1.02] shadow-2xl' : 'scale-100 shadow-md'} cursor-pointer active:scale-[0.98] mb-8`}
+                  onClick={() => setSelectedServiceId(service._id || service.id)}
+                  className={`zoom-card relative rounded-4xl ring-1 ring-transparent dark:ring-white/5 transition-all duration-300 transform rotating-border-home ${String(activeCardId) === String(service._id || service.id) ? 'active scale-[1.02] shadow-2xl' : 'scale-100 shadow-md'} cursor-pointer active:scale-[0.98] mb-8`}
                 >
                   {/* Inner Content Wrapper */}
                   <div className="rounded-4xl overflow-hidden w-full h-full relative z-10 bg-white dark:bg-slate-900 isolation-isolate">

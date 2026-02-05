@@ -191,7 +191,7 @@ exports.updateBookingStatus = async (req, res, next) => {
                 recipient,
                 type: 'BOOKING_CANCELLED',
                 title: 'Booking Cancelled',
-                message: `Booking for ${booking.service.title} was cancelled`,
+                message: `Booking for ${booking.service?.title || 'Unknown Service'} was cancelled`,
                 data: { bookingId: booking._id }
             });
         }
@@ -204,7 +204,7 @@ exports.updateBookingStatus = async (req, res, next) => {
                 recipient: booking.customer,
                 type: `BOOKING_${status}`,
                 title: `Booking ${status}`,
-                message: `Your booking for ${booking.service.title} was ${status.toLowerCase()}`,
+                message: `Your booking for ${booking.service?.title || 'Unknown Service'} was ${status.toLowerCase()}`,
                 data: { bookingId: booking._id }
             });
         }
@@ -223,7 +223,7 @@ exports.updateBookingStatus = async (req, res, next) => {
                 recipient: booking.customer,
                 type: `BOOKING_${status}`,
                 title: `Booking Update: ${status.replace('_', ' ')}`,
-                message: `Status update for ${booking.service.title}: ${status}`,
+                message: `Status update for ${booking.service?.title || 'Unknown Service'}: ${status}`,
                 data: { bookingId: booking._id }
             });
         }

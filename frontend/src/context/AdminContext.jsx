@@ -88,7 +88,7 @@ export const AdminProvider = ({ children }) => {
             title,
             price: isHouseshifting ? 199 : service.price,
             image: service.headerImage || service.image || categoryBtn.image || 'https://images.unsplash.com/photo-1581578731117-1045293d2f28?q=80&w=400',
-            rating: service.rating || 4.8, // Default rating if missing
+            rating: service.rating || 0, // Default rating if missing
             reviews: service.reviews || 0,
             subServices
         };

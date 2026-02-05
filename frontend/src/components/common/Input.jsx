@@ -13,7 +13,7 @@ const Input = forwardRef(({
     return (
         <div className="flex flex-col gap-1.5">
             {label && (
-                <label htmlFor={id} className="text-sm font-medium text-slate-700">
+                <label htmlFor={id} className="text-sm font-medium text-slate-700 dark:text-slate-300">
                     {label}
                 </label>
             )}
@@ -22,7 +22,7 @@ const Input = forwardRef(({
                 id={id}
                 type={type}
                 className={twMerge(
-                    'px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all',
+                    'px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all',
                     error && 'border-red-500 focus:border-red-500 focus:ring-red-500/20',
                     className
                 )}
