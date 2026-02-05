@@ -19,6 +19,7 @@ const TechnicianDashboard = () => {
     const { user, logout } = useUser();
     const [activeTab, setActiveTab] = useState('dashboard');
     const [isSidebarOpen, setSidebarOpen] = useState(true);
+    const [isStatusUpdating, setIsStatusUpdating] = useState(false);
 
     useEffect(() => {
         if (activeTab === 'dashboard') {
@@ -37,8 +38,13 @@ const TechnicianDashboard = () => {
 
     if (loading && !technicianProfile) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full"></div></div>;
 
-    const toggleStatus = (checked) => {
-        updateStatus(checked);
+    const toggleStatus = async (checked) => {
+        setIsStatusUpdating(true);
+        try {
+            await updateStatus(checked);
+        } finally {
+            setIsStatusUpdating(false);
+        }
     };
 
     const NAV_ITEMS = [
@@ -81,13 +87,14 @@ const TechnicianDashboard = () => {
                         <p className="text-xs text-slate-500 font-bold uppercase mb-2">Status</p>
                         <div className="flex items-center justify-between">
                             <span className={`text-sm font-bold ${technicianProfile?.isOnline ? 'text-green-600' : 'text-slate-500'}`}>
-                                {technicianProfile?.isOnline ? 'Online' : 'Offline'}
+                                {isStatusUpdating ? 'Updating...' : (technicianProfile?.isOnline ? 'Online' : 'Offline')}
                             </span>
                             <Switch
                                 checked={technicianProfile?.isOnline || false}
                                 onChange={toggleStatus}
+                                disabled={isStatusUpdating}
                                 className={`${technicianProfile?.isOnline ? 'bg-green-500' : 'bg-slate-300'
-                                    } relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none`}
+                                    } relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed`}
                             >
                                 <span
                                     className={`${technicianProfile?.isOnline ? 'translate-x-6' : 'translate-x-1'
@@ -105,7 +112,7 @@ const TechnicianDashboard = () => {
             {/* Main Content */}
             <main className="flex-1 md:pl-64 flex flex-col min-h-screen">
                 {/* Mobile Header */}
-                <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 sticky top-0 z-10 flex items-center justify-between md:hidden">
+                <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-2 md:p-4 sticky top-0 z-10 flex items-center justify-between md:hidden">
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">T</div>
                         <h1 className="font-bold text-lg text-slate-900 dark:text-white">Dashboard</h1>
@@ -128,38 +135,39 @@ const TechnicianDashboard = () => {
                     </div>
                 </header>
 
-                <div className="p-4 md:p-8 space-y-8 pb-24 md:pb-8">
+                <div className="p-2 md:p-8 space-y-4 md:space-y-8 pb-24 md:pb-8">
                     {activeTab === 'dashboard' && (
                         <div className="space-y-8">
                             {/* Responsive Grid for Stats */}
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
-                                    <p className="text-slate-500 text-xs font-bold uppercase mb-1">Total Earnings</p>
-                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">₹{stats?.totalEarnings || 0}</h3>
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4">
+                                <div className="bg-white dark:bg-slate-900 p-3 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
+                                    <p className="text-slate-500 text-[10px] md:text-xs font-bold uppercase mb-1">Total Earnings</p>
+                                    <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">₹{stats?.totalEarnings || 0}</h3>
                                     <span className="text-xs font-bold text-green-500 flex items-center mt-2">
                                         <TrendingUp className="w-3 h-3 mr-1" /> Lifetime
                                     </span>
                                 </div>
-                                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
-                                    <p className="text-slate-500 text-xs font-bold uppercase mb-1">Completed Jobs</p>
-                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white">{stats?.completedJobs || 0}</h3>
+                                <div className="bg-white dark:bg-slate-900 p-3 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
+                                    <p className="text-slate-500 text-[10px] md:text-xs font-bold uppercase mb-1">Completed Jobs</p>
+                                    <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">{stats?.completedJobs || 0}</h3>
                                 </div>
-                                <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
-                                    <p className="text-slate-500 text-xs font-bold uppercase mb-1">Rating</p>
-                                    <h3 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-1">
+                                <div className="bg-white dark:bg-slate-900 p-3 md:p-6 rounded-2xl md:rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
+                                    <p className="text-slate-500 text-[10px] md:text-xs font-bold uppercase mb-1">Rating</p>
+                                    <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-1">
                                         {technicianProfile?.avgRating || 'New'} <span className="text-yellow-400 text-lg">★</span>
                                     </h3>
                                 </div>
-                                <div className="bg-blue-600 p-6 rounded-3xl md:flex flex-col justify-between hidden text-white relative overflow-hidden">
+                                <div className="bg-blue-600 p-3 md:p-6 rounded-2xl md:rounded-3xl md:flex flex-col justify-between hidden text-white relative overflow-hidden">
                                     <div className="relative z-10">
                                         <p className="text-blue-200 text-xs font-bold uppercase mb-1">Status</p>
                                         <div className="flex items-center justify-between">
-                                            <h3 className="text-xl font-black">{technicianProfile?.isOnline ? 'Accepting Jobs' : 'Offline'}</h3>
+                                            <h3 className="text-xl font-black">{isStatusUpdating ? 'Updating status...' : (technicianProfile?.isOnline ? 'Accepting Jobs' : 'Offline')}</h3>
                                             <Switch
                                                 checked={technicianProfile?.isOnline || false}
                                                 onChange={toggleStatus}
+                                                disabled={isStatusUpdating}
                                                 className={`${technicianProfile?.isOnline ? 'bg-green-400' : 'bg-white/20'
-                                                    } relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none`}
+                                                    } relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed`}
                                             >
                                                 <span
                                                     className={`${technicianProfile?.isOnline ? 'translate-x-6' : 'translate-x-1'
@@ -297,17 +305,17 @@ const TechnicianDashboard = () => {
                     )}
 
                     {activeTab === 'profile' && (
-                        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl md:rounded-3xl p-5 md:p-8 border border-slate-100 dark:border-slate-800 transition-all duration-300">
                             {isEditingProfile ? (
                                 <div className="space-y-6">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <h2 className="text-2xl font-black text-slate-900 dark:text-white">Edit Profile</h2>
-                                        <button onClick={() => setIsEditingProfile(false)} className="text-slate-500 hover:text-slate-700 font-bold">Cancel</button>
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                                        <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">Edit Profile</h2>
+                                        <button onClick={() => setIsEditingProfile(false)} className="text-slate-500 hover:text-slate-700 font-bold text-sm">Cancel</button>
                                     </div>
 
                                     {/* Photo Upload */}
-                                    <div className="flex items-center gap-6">
-                                        <div className="w-24 h-24 rounded-full bg-slate-200 overflow-hidden border-4 border-white shadow-lg relative cursor-pointer group">
+                                    <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                                        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-slate-200 overflow-hidden border-4 border-white shadow-lg relative cursor-pointer group">
                                             <img
                                                 src={
                                                     editForm.preview ||
@@ -323,7 +331,7 @@ const TechnicianDashboard = () => {
                                                 }}
                                             />
                                             <label className="absolute inset-0 bg-black/50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                                                <span className="text-xs font-bold">Change</span>
+                                                <span className="text-[10px] font-bold">Change</span>
                                                 <input type="file" className="hidden" accept="image/*" onChange={(e) => {
                                                     const file = e.target.files[0];
                                                     if (file) {
@@ -332,9 +340,9 @@ const TechnicianDashboard = () => {
                                                 }} />
                                             </label>
                                         </div>
-                                        <div>
-                                            <h3 className="font-bold text-slate-900 dark:text-white">Profile Photo</h3>
-                                            <p className="text-xs text-slate-500">Click image to upload new photo</p>
+                                        <div className="text-center sm:text-left">
+                                            <h3 className="font-bold text-slate-900 dark:text-white text-sm md:text-base">Profile Photo</h3>
+                                            <p className="text-[10px] md:text-xs text-slate-500">Click image to upload new photo</p>
                                         </div>
                                     </div>
 
@@ -370,16 +378,16 @@ const TechnicianDashboard = () => {
                                             });
                                             setIsEditingProfile(false);
                                         }}
-                                        className="w-full py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30"
+                                        className="w-full py-3 md:py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 text-sm md:text-base"
                                     >
                                         Save Changes
                                     </button>
                                 </div>
                             ) : (
                                 <div className="space-y-8">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-6">
-                                            <div className="w-24 h-24 rounded-full bg-slate-200 overflow-hidden border-4 border-white shadow-lg">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                                        <div className="flex items-center gap-4 md:gap-6">
+                                            <div className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-slate-200 overflow-hidden border-4 border-white shadow-lg">
                                                 <img
                                                     src={
                                                         user?.profilePhoto?.startsWith('http')
@@ -395,9 +403,9 @@ const TechnicianDashboard = () => {
                                                 />
                                             </div>
                                             <div>
-                                                <h2 className="text-2xl font-black text-slate-900 dark:text-white">{user?.name}</h2>
-                                                <p className="text-slate-500 font-medium">{user?.email}</p>
-                                                <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-full mt-2">Technician</span>
+                                                <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">{user?.name}</h2>
+                                                <p className="text-xs md:text-sm text-slate-500 font-medium">{user?.email}</p>
+                                                <span className="inline-block px-3 py-1 bg-blue-100 text-blue-700 text-[10px] md:text-xs font-bold rounded-full mt-2 tracking-tight">Technician</span>
                                             </div>
                                         </div>
                                         <button
@@ -410,7 +418,7 @@ const TechnicianDashboard = () => {
                                                 });
                                                 setIsEditingProfile(true);
                                             }}
-                                            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 transition-colors"
+                                            className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 transition-colors text-xs md:text-sm"
                                         >
                                             Edit Profile
                                         </button>

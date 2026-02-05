@@ -104,37 +104,50 @@ const TechnicianOnboardingPage = () => {
 
         setIsLoading(true);
 
-        // 1. Create Basic Profile
-        const profileResult = await createProfile({
-            bio: bio || "Professional Technician", // Default bio if empty
-            skills: selectedSkills,
-            location,
-            profilePhoto
-        });
+        try {
+            // 1. Create Basic Profile
+            toast.loading("Creating profile...", { id: 'onboarding' });
+            const profileResult = await createProfile({
+                bio: bio || "Professional Technician",
+                skills: selectedSkills,
+                location,
+                profilePhoto
+            });
 
-        if (!profileResult.success) {
+            if (!profileResult.success) {
+                toast.error(profileResult.message || "Failed to create profile", { id: 'onboarding' });
+                setIsLoading(false);
+                return;
+            }
+
+            // 2. Upload Mandatory Documents
+            if (!aadharCard || !panCard) {
+                toast.error("Aadhaar Card and PAN Card are mandatory", { id: 'onboarding' });
+                setIsLoading(false);
+                return;
+            }
+
+            toast.loading("Uploading documents...", { id: 'onboarding' });
+            const docResult = await uploadDocuments({
+                aadharCard,
+                panCard,
+                resume
+            });
+
+            if (docResult.success) {
+                toast.success("Profile created & documents uploaded!", { id: 'onboarding' });
+                setTimeout(() => {
+                    navigate('/technician/dashboard');
+                }, 1500);
+            } else {
+                toast.error(docResult.message || "Document upload failed", { id: 'onboarding' });
+                setIsLoading(false);
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Something went wrong. Please try again.", { id: 'onboarding' });
             setIsLoading(false);
-            return;
         }
-
-        // 2. Upload Mandatory Documents
-        if (!aadharCard || !panCard) {
-            toast.error("Aadhaar Card and PAN Card are mandatory for verification");
-            setIsLoading(false);
-            return;
-        }
-
-        const docResult = await uploadDocuments({
-            aadharCard,
-            panCard,
-            resume // Optional
-        });
-
-        if (docResult.success) {
-            toast.success("Onboarding complete! Your profile is under review.");
-            navigate('/technician/dashboard');
-        }
-        setIsLoading(false);
     };
 
     return (
@@ -280,8 +293,19 @@ const TechnicianOnboardingPage = () => {
                     </div>
 
                     <div className="pt-4">
-                        <Button className="w-full py-4 text-lg shadow-xl shadow-blue-600/20" disabled={isLoading}>
-                            {isLoading ? 'Creating Profile...' : 'Complete Setup'}
+                        <Button
+                            type="submit"
+                            className="w-full py-4 text-lg shadow-xl shadow-blue-600/20"
+                            disabled={isLoading}
+                        >
+                            {isLoading ? (
+                                <div className="flex items-center justify-center gap-2">
+                                    <Loader className="w-5 h-5 animate-spin" />
+                                    <span>Completing profile...</span>
+                                </div>
+                            ) : (
+                                'Complete Setup'
+                            )}
                         </Button>
                     </div>
                 </form>

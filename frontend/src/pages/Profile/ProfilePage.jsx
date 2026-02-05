@@ -49,8 +49,10 @@ const ProfilePage = () => {
   React.useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       navigate('/login');
+    } else if (!isLoading && isAuthenticated && user?.role === 'TECHNICIAN') {
+      navigate('/technician/dashboard');
     }
-  }, [isLoading, isAuthenticated, navigate]);
+  }, [isLoading, isAuthenticated, user, navigate]);
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#050508]"><div className="animate-spin w-8 h-8 border-4 border-rose-600 border-t-transparent rounded-full"></div></div>;
 

@@ -13,6 +13,7 @@ const TechnicianServices = () => {
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingServiceId, setEditingServiceId] = useState(null);
+    const [isSubmitting, setIsSubmitting] = useState(false); // Added isSubmitting state
 
     // Form State
     const [formData, setFormData] = useState({
@@ -28,7 +29,7 @@ const TechnicianServices = () => {
     const [isRequestingCategory, setIsRequestingCategory] = useState(false);
     const [requestName, setRequestName] = useState('');
     const [requestMessage, setRequestMessage] = useState('');
-    const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+    // Removed isSubmittingRequest, now using general isSubmitting
 
     const fetchInitialData = async () => {
         if (!technicianProfile) return;
@@ -115,6 +116,7 @@ const TechnicianServices = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setIsSubmitting(true); // Set submitting state
         try {
             const data = new FormData();
             data.append('title', formData.title);
@@ -148,6 +150,8 @@ const TechnicianServices = () => {
             fetchServices();
         } catch (err) {
             toast.error(err.response?.data?.message || 'Failed to save service');
+        } finally {
+            setIsSubmitting(false); // Reset submitting state
         }
     };
 
@@ -160,7 +164,7 @@ const TechnicianServices = () => {
         e.preventDefault();
         if (!requestName) return;
 
-        setIsSubmittingRequest(true);
+        setIsSubmitting(true); // Set submitting state
         try {
             await client.post('/feedbacks', {
                 category: 'Category Request',
@@ -174,7 +178,7 @@ const TechnicianServices = () => {
         } catch (err) {
             toast.error(err.response?.data?.message || 'Failed to send request');
         } finally {
-            setIsSubmittingRequest(false);
+            setIsSubmitting(false); // Reset submitting state
         }
     };
 
@@ -354,8 +358,8 @@ const TechnicianServices = () => {
                             </div>
 
                             <div className="pt-4">
-                                <Button type="submit" className="w-full" size="lg">
-                                    {editingServiceId ? 'Update Service' : 'Create Service'}
+                                <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+                                    {isSubmitting ? (editingServiceId ? 'Updating Service...' : 'Creating Service...') : (editingServiceId ? 'Update Service' : 'Create Service')}
                                 </Button>
                             </div>
                         </form>
@@ -394,9 +398,9 @@ const TechnicianServices = () => {
                             <Button
                                 type="submit"
                                 className="w-full h-12"
-                                disabled={isSubmittingRequest}
+                                disabled={isSubmitting}
                             >
-                                {isSubmittingRequest ? 'Sending...' : 'Send Request'}
+                                {isSubmitting ? 'Sending Request...' : 'Send Request'}
                             </Button>
                         </form>
                     </div>

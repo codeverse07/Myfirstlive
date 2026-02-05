@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Wrench } from 'lucide-react';
+import { Wrench, Eye, EyeOff } from 'lucide-react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { toast } from 'react-hot-toast';
@@ -41,6 +41,7 @@ const LoginPage = () => {
     const location = useLocation();
     const { login, register } = useUser();
     const [isLoading, setIsLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const [isExistingCustomer, setIsExistingCustomer] = useState(() => {
         return location.state?.isSignUp ? false : true;
     });
@@ -297,11 +298,20 @@ const LoginPage = () => {
                             id="password"
                             label="Password"
                             placeholder={isExistingCustomer ? "Password" : "Create Password"}
-                            type="password"
+                            type={showPassword ? "text" : "password"}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
                             className="py-1.5"
+                            rightElement={
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                                >
+                                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                            }
                         />
 
                         {isExistingCustomer && (

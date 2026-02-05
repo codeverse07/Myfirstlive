@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUser } from '../../context/UserContext';
 import { useState } from 'react';
-import { Wrench } from 'lucide-react';
+import { Wrench, Eye, EyeOff } from 'lucide-react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import Button from '../../components/common/Button';
@@ -46,6 +46,7 @@ const RegisterPage = () => {
     const [password, setPassword] = useState('');
     const [role, setRole] = useState('USER'); // Default Role
     const [isLoading, setIsLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     useGSAP(() => {
         const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
@@ -268,11 +269,20 @@ const RegisterPage = () => {
                                 id="password"
                                 label="Password"
                                 placeholder="Create a password"
-                                type="password"
+                                type={showPassword ? "text" : "password"}
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
                                 minLength={8}
+                                rightElement={
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                                    >
+                                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                }
                             />
                             <p className="text-xs text-slate-500 mt-1">
                                 Must be at least 8 characters.

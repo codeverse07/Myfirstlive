@@ -177,8 +177,10 @@ const BookingsPage = () => {
     React.useEffect(() => {
         if (!isLoading && !isAuthenticated) {
             navigate('/login');
+        } else if (!isLoading && isAuthenticated && user?.role === 'TECHNICIAN') {
+            navigate('/technician/dashboard');
         }
-    }, [isLoading, isAuthenticated, navigate]);
+    }, [isLoading, isAuthenticated, user, navigate]);
 
     useGSAP(() => {
         if (isLoading) return;

@@ -11,7 +11,7 @@ const Navbar = () => {
     const [isScrolled, setIsScrolled] = useState(false);
     const location = useLocation();
     const { theme, toggleTheme } = useTheme();
-    const { setIsChatOpen, isAuthenticated } = useUser();
+    const { setIsChatOpen, isAuthenticated, user } = useUser();
     const { playGlassSound } = useSound();
     const [locationName, setLocationName] = useState(() => {
         return localStorage.getItem('user_location') || null;
@@ -52,11 +52,16 @@ const Navbar = () => {
     const activeColorClass = 'text-blue-600 dark:text-blue-400';
     const logoColorClass = isTransparent ? 'text-white' : 'text-slate-900 dark:text-white';
 
-    const navLinks = [
-        { name: 'Home', path: '/' },
-        { name: 'Services', path: '/services' },
-        { name: 'Bookings', path: '/bookings' },
-    ];
+    const navLinks = user?.role === 'TECHNICIAN'
+        ? [
+            { name: 'Dashboard', path: '/technician/dashboard' },
+            { name: 'Services', path: '/services' },
+        ]
+        : [
+            { name: 'Home', path: '/' },
+            { name: 'Services', path: '/services' },
+            { name: 'Bookings', path: '/bookings' },
+        ];
 
     return (
         <nav className={navClasses}>
@@ -64,7 +69,7 @@ const Navbar = () => {
                 <div className="flex justify-between h-16">
                     {/* Logo */}
                     <div className="flex items-center">
-                        <Link to="/" className="flex items-center gap-2">
+                        <Link to={user?.role === 'TECHNICIAN' ? "/technician/dashboard" : "/"} className="flex items-center gap-2">
                             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                                 <Wrench className="w-5 h-5 text-white" />
                             </div>
@@ -157,13 +162,13 @@ const Navbar = () => {
 
                             </>
                         ) : (
-                            <Link to="/profile">
+                            <Link to={user?.role === 'TECHNICIAN' ? "/technician/dashboard" : "/profile"}>
                                 <Button
                                     size="sm"
                                     className={`flex items-center gap-2 font-bold ${isTransparent ? 'bg-white/20 text-white hover:bg-white/30 border-white/50 shadow-lg' : 'bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20'}`}
                                 >
                                     <User className="w-4 h-4" />
-                                    <span>Profile</span>
+                                    <span>{user?.role === 'TECHNICIAN' ? 'Dashboard' : 'Profile'}</span>
                                 </Button>
                             </Link>
                         )}

@@ -55,7 +55,6 @@ export const TechnicianProvider = ({ children }) => {
             });
 
             setTechnicianProfile(res.data.data.profile);
-            toast.success("Documents uploaded successfully!");
             return { success: true };
         } catch (error) {
             console.error(error);
@@ -87,7 +86,6 @@ export const TechnicianProvider = ({ children }) => {
             });
 
             setTechnicianProfile(res.data.data.profile);
-            toast.success("Profile created successfully!");
             return { success: true };
         } catch (error) {
             console.error(error);
@@ -226,6 +224,7 @@ export const TechnicianProvider = ({ children }) => {
         jobs,
         reviews,
         createProfile,
+        uploadDocuments,
         updateStatus,
         updateProfileData,
         fetchTechnicianBookings,
