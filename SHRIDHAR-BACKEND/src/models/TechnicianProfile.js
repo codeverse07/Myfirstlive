@@ -23,6 +23,11 @@ const technicianProfileSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Service'
     }],
+    status: {
+        type: String,
+        enum: ['ONLINE', 'OFFLINE', 'BUSY'],
+        default: 'OFFLINE'
+    },
     isOnline: {
         type: Boolean,
         default: false

@@ -42,17 +42,22 @@ const BookingModal = ({ isOpen, onClose, service, onConfirm }) => {
             await updateProfile({ address: formData.address });
         }
 
+        // Create sanitized booking data
+        const bookingData = {
+            ...formData,
+            serviceId: service._id || service.id,
+            serviceName: service.title,
+            image: service.image,
+            price: service.price,
+        };
+
+        // Sanitize: remove empty strings for location fields to prevent backend validation errors
+        if (!bookingData.dropLocation) delete bookingData.dropLocation;
+        if (!bookingData.pickupLocation) delete bookingData.pickupLocation;
+        if (!bookingData.address) delete bookingData.address;
+
         // Simulate network delay
         setTimeout(() => {
-            const bookingData = {
-                ...formData,
-                serviceId: service._id || service.id,
-                serviceName: service.title,
-                image: service.image,
-                price: service.price,
-                // address is already in formData
-            };
-
             onConfirm(bookingData);
             setIsLoading(false);
             onClose();
@@ -91,6 +96,7 @@ const BookingModal = ({ isOpen, onClose, service, onConfirm }) => {
                                 type="date"
                                 icon={Calendar}
                                 value={formData.date}
+                                min={new Date().toISOString().split('T')[0]}
                                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                                 required
                             />

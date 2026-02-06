@@ -1,4 +1,5 @@
 import React, { useRef, useLayoutEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import WorkerCharacter from './WorkerCharacter';
@@ -18,6 +19,7 @@ const iconMap = {
 };
 
 const ServiceStack = ({ categories = [] }) => {
+    const navigate = useNavigate();
     const containerRef = useRef(null);
     const workerRef = useRef(null);
     // Safety check for empty categories
@@ -167,7 +169,10 @@ const ServiceStack = ({ categories = [] }) => {
                                             {cat.description}
                                         </p>
 
-                                        <button className={`group/btn flex items-center gap-3 px-8 py-4 rounded-full bg-slate-900 text-white font-medium hover:bg-${colorName}-600 transition-all duration-300 w-fit drop-shadow-lg`}>
+                                        <button
+                                            onClick={() => navigate('/services', { state: { category: cat.name } })}
+                                            className={`group/btn flex items-center gap-3 px-8 py-4 rounded-full bg-slate-900 text-white font-medium hover:bg-${colorName}-600 transition-all duration-300 w-fit drop-shadow-lg`}
+                                        >
                                             <span>Book Now</span>
                                             <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center group-hover/btn:translate-x-1 transition-transform">
                                                 <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>

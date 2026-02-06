@@ -50,21 +50,36 @@ exports.createBooking = async (req, res, next) => {
             }
         }
 
-        // 4. Create Booking
-        let booking = await Booking.create({
+        // Helper to format location
+        const formatLocation = (loc) => {
+            if (!loc) return undefined;
+            if (typeof loc === 'string' && loc.trim() !== '') {
+                return { type: 'Point', coordinates: [0, 0], address: loc };
+            }
+            if (typeof loc === 'object' && loc.address) {
+                return {
+                    type: 'Point',
+                    coordinates: loc.coordinates || [0, 0],
+                    address: loc.address
+                };
+            }
+            return undefined;
+        };
+
+        const booking = await Booking.create({
             customer: req.user.id,
             technician: service.technician._id,
             service: serviceId,
             price: service.price,
             scheduledAt,
             notes,
-            userLocation: {
+            location: {
                 type: 'Point',
                 coordinates: coordinates || [0, 0],
                 address: req.body.address || req.body.pickupLocation
             },
-            pickupLocation: req.body.pickupLocation,
-            dropLocation: req.body.dropLocation,
+            pickupLocation: formatLocation(req.body.pickupLocation),
+            dropLocation: formatLocation(req.body.dropLocation),
             distance,
             estimatedDuration
         });

@@ -53,9 +53,15 @@ exports.createService = async (req, res, next) => {
 
 exports.getAllServices = async (req, res, next) => {
     try {
+        // Add caching headers for better performance
+        res.set({
+            'Cache-Control': 'public, max-age=300', // 5 minutes cache
+            'ETag': Date.now().toString(), // Simple ETag for cache validation
+        });
+
         // Build Query
         const queryObj = { ...req.query };
-        const excludedFields = ['page', 'sort', 'limit', 'fields', 'search'];
+        const excludedFields = ['page', 'sort', 'limit', 'fields', 'search', 'minRating', 'maxPrice', 'minPrice', 'maxRating'];
         excludedFields.forEach(el => delete queryObj[el]);
 
         // Search feature
@@ -68,6 +74,16 @@ exports.getAllServices = async (req, res, next) => {
             queryObj.category = { $regex: `^${req.query.category}$`, $options: 'i' };
         } else if (req.query.category === 'All') {
             delete queryObj.category;
+        }
+
+        // Price filtering
+        if (req.query.minPrice || req.query.maxPrice) {
+            queryObj.price = {};
+            if (req.query.minPrice && !isNaN(req.query.minPrice)) queryObj.price.$gte = Number(req.query.minPrice);
+            if (req.query.maxPrice && !isNaN(req.query.maxPrice)) queryObj.price.$lte = Number(req.query.maxPrice);
+
+            // If the object is empty after NaN checks, delete it
+            if (Object.keys(queryObj.price).length === 0) delete queryObj.price;
         }
 
         // Visibility Guard: ONLY show services from ACTIVE technicians who are NOT REJECTED
@@ -92,27 +108,39 @@ exports.getAllServices = async (req, res, next) => {
         const allowedTechIds = activeTechUserIds.filter(id => !invalidUserIds.includes(id.toString()));
 
         if (queryObj.technician) {
-            // If filtering by specific tech, ensure that tech is allowed
             const mongoose = require('mongoose');
             let techFilterId = queryObj.technician;
-            if (typeof techFilterId === 'string') techFilterId = new mongoose.Types.ObjectId(techFilterId);
+            try {
+                if (typeof techFilterId === 'string') techFilterId = new mongoose.Types.ObjectId(techFilterId);
 
-            if (!allowedTechIds.some(id => id.toString() === techFilterId.toString())) {
+                if (!allowedTechIds.some(id => id.toString() === techFilterId.toString())) {
+                    return res.status(200).json({ status: 'success', results: 0, data: { services: [] } });
+                }
+                queryObj.technician = techFilterId;
+            } catch (err) {
+                // If invalid ID, return nothing instead of crashing
                 return res.status(200).json({ status: 'success', results: 0, data: { services: [] } });
             }
-            queryObj.technician = techFilterId;
         } else {
             queryObj.technician = { $in: allowedTechIds };
         }
 
+        // Debug log to identify query issues
+        console.log('Final Service Query Object:', JSON.stringify(queryObj, null, 2));
+
+        // Pagination
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 12;
+        const skip = (page - 1) * limit;
+
         let query = Service.find(queryObj)
-            .select('title category price image headerImage rating reviewCount isActive createdAt') // Select only needed service fields
+            .select('title category price image headerImage rating reviewCount isActive createdAt')
             .populate({
                 path: 'technician',
-                select: 'name email profilePhoto isActive location', // Select only needed technician fields
+                select: 'name email profilePhoto isActive location',
                 populate: {
                     path: 'technicianProfile',
-                    select: 'isOnline avgRating totalJobs location categoryRatings' // Select only needed profile fields
+                    select: 'isOnline avgRating totalJobs location categoryRatings'
                 }
             });
 
@@ -123,32 +151,48 @@ exports.getAllServices = async (req, res, next) => {
             query = query.sort('-createdAt');
         }
 
+        // Apply pagination early to count total based on queryObj
+        const total = await Service.countDocuments(queryObj);
+        query = query.skip(skip).limit(limit);
+
         let services = await query;
 
-        // Inject Category-Specific Rating into the Service Object
+        // Inject Category-Specific Rating & Filter by minRating
+        const minRating = Number(req.query.minRating) || 0;
+
         services = services.map(doc => {
             const service = doc.toObject();
             if (service.technician && service.technician.technicianProfile) {
                 const profile = service.technician.technicianProfile;
-                // Find rating for this service's category
                 const categoryStats = profile.categoryRatings?.find(
-                    r => r.category && r.category.toLowerCase() === service.category.toLowerCase()
+                    r => r.category && service.category && r.category.toLowerCase() === service.category.toLowerCase()
                 );
 
                 if (categoryStats) {
                     service.rating = categoryStats.avgRating;
                     service.reviewCount = categoryStats.count;
                 } else {
-                    service.rating = 0; // Default to 0 ("New") if no specific reviews
+                    service.rating = 0;
                     service.reviewCount = 0;
                 }
             }
             return service;
         });
 
+        // Filter by minRating if applicable (since rating is dynamic)
+        if (minRating > 0) {
+            services = services.filter(s => s.rating >= minRating);
+        }
+
+        const totalPages = Math.ceil(total / limit);
+
         res.status(200).json({
             status: 'success',
             results: services.length,
+            total,
+            page,
+            limit,
+            totalPages,
             data: { services }
         });
     } catch (err) {
@@ -158,6 +202,12 @@ exports.getAllServices = async (req, res, next) => {
 
 exports.getService = async (req, res, next) => {
     try {
+        // Add caching headers for individual service
+        res.set({
+            'Cache-Control': 'public, max-age=600', // 10 minutes cache for individual services
+            'ETag': Date.now().toString(),
+        });
+
         let service = await Service.findById(req.params.id).populate({
             path: 'technician',
             select: 'name email profilePhoto isActive phone',

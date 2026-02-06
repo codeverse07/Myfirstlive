@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Phone, Mail, MapPin, ChevronRight, LogOut, Settings, CreditCard, Heart, Wrench, Facebook, Twitter, Instagram, Check, MessageSquarePlus, Send, AlertCircle } from 'lucide-react';
+import { User, Phone, Mail, MapPin, ChevronRight, LogOut, Settings, CreditCard, Heart, Wrench, Facebook, Twitter, Instagram, Check, MessageSquarePlus, Send, AlertCircle, Loader } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useUser } from '../../context/UserContext';
 import { useSound } from '../../context/SoundContext';
@@ -15,6 +15,7 @@ const ProfilePage = () => {
   const [feedbackText, setFeedbackText] = React.useState('');
   const [feedbackCategory, setFeedbackCategory] = React.useState('Improvements');
   const [isSubmittingFeedback, setIsSubmittingFeedback] = React.useState(false);
+  const [isUpdatingProfile, setIsUpdatingProfile] = React.useState(false);
   const [feedbackSent, setFeedbackSent] = React.useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = React.useState(false);
   const [generatedAvatars, setGeneratedAvatars] = React.useState([]);
@@ -32,8 +33,13 @@ const ProfilePage = () => {
   };
 
   const handleSelectAvatar = async (avatarUrl) => {
-    await updateProfile({ profilePhoto: avatarUrl });
-    setIsAvatarModalOpen(false);
+    setIsUpdatingProfile(true);
+    try {
+      await updateProfile({ profilePhoto: avatarUrl });
+    } finally {
+      setIsUpdatingProfile(false);
+      setIsAvatarModalOpen(false);
+    }
   };
 
   const handleCameraClick = () => {
@@ -79,10 +85,15 @@ const ProfilePage = () => {
 
 
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (window.confirm('Are you sure you want to logout?')) {
-      logout();
-      navigate('/');
+      setIsUpdatingProfile(true);
+      try {
+        await logout();
+        navigate('/');
+      } finally {
+        setIsUpdatingProfile(false);
+      }
     }
   };
 
@@ -591,10 +602,11 @@ const ProfilePage = () => {
               {generatedAvatars.map((avatar, index) => (
                 <button
                   key={index}
+                  disabled={isUpdatingProfile}
                   onClick={() => handleSelectAvatar(avatar)}
-                  className="aspect-square rounded-2xl bg-slate-50 dark:bg-slate-800 p-2 hover:scale-110 hover:shadow-lg transition-all border-2 border-transparent hover:border-rose-500"
+                  className="aspect-square rounded-2xl bg-slate-50 dark:bg-slate-800 p-2 hover:scale-110 hover:shadow-lg transition-all border-2 border-transparent hover:border-rose-500 disabled:opacity-50 disabled:scale-100 flex items-center justify-center"
                 >
-                  <img src={avatar} alt={`Avatar ${index}`} className="w-full h-full object-contain" />
+                  {isUpdatingProfile ? <Loader className="w-4 h-4 animate-spin text-rose-500" /> : <img src={avatar} alt={`Avatar ${index}`} className="w-full h-full object-contain" />}
                 </button>
               ))}
             </div>

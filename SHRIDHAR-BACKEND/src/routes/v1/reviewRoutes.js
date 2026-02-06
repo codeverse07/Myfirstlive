@@ -12,6 +12,10 @@ const router = express.Router({ mergeParams: true });
 router.use(authMiddleware.protect);
 
 router
+    .route('/reviews')
+    .get(authMiddleware.restrictTo('ADMIN'), reviewController.getAllReviews);
+
+router
     .route('/')
     .post(
         authMiddleware.restrictTo('USER'),

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
-import { Menu, X, Wrench, User, Moon, Sun, Bot, MapPin } from 'lucide-react';
+import { Menu, X, Wrench, User, Moon, Sun, Bot, MapPin, LogOut } from 'lucide-react';
 import Button from '../common/Button';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
@@ -11,7 +11,7 @@ const Navbar = () => {
     const [isScrolled, setIsScrolled] = useState(false);
     const location = useLocation();
     const { theme, toggleTheme } = useTheme();
-    const { setIsChatOpen, isAuthenticated, user } = useUser();
+    const { setIsChatOpen, isAuthenticated, user, logout } = useUser();
     const { playGlassSound } = useSound();
     const [locationName, setLocationName] = useState(() => {
         return localStorage.getItem('user_location') || null;
@@ -162,15 +162,29 @@ const Navbar = () => {
 
                             </>
                         ) : (
-                            <Link to={user?.role === 'TECHNICIAN' ? "/technician/dashboard" : "/profile"}>
-                                <Button
-                                    size="sm"
-                                    className={`flex items-center gap-2 font-bold ${isTransparent ? 'bg-white/20 text-white hover:bg-white/30 border-white/50 shadow-lg' : 'bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20'}`}
+                            <div className="flex items-center gap-2">
+                                <Link to={user?.role === 'TECHNICIAN' ? "/technician/dashboard" : "/profile"}>
+                                    <Button
+                                        size="sm"
+                                        className={`flex items-center gap-2 font-bold ${isTransparent ? 'bg-white/20 text-white hover:bg-white/30 border-white/50 shadow-lg' : 'bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-600/20'}`}
+                                    >
+                                        <User className="w-4 h-4" />
+                                        <span>{user?.role === 'TECHNICIAN' ? 'Dashboard' : 'Profile'}</span>
+                                    </Button>
+                                </Link>
+                                <button
+                                    onClick={async () => {
+                                        if (window.confirm('Logout?')) {
+                                            await logout();
+                                            window.location.href = '/';
+                                        }
+                                    }}
+                                    className={`p-2 rounded-xl transition-all duration-300 active:scale-95 ${isTransparent ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-slate-100 dark:bg-slate-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
+                                    title="Logout"
                                 >
-                                    <User className="w-4 h-4" />
-                                    <span>{user?.role === 'TECHNICIAN' ? 'Dashboard' : 'Profile'}</span>
-                                </Button>
-                            </Link>
+                                    <LogOut className="w-5 h-5" />
+                                </button>
+                            </div>
                         )}
                     </div>
 
@@ -210,12 +224,25 @@ const Navbar = () => {
                             </NavLink>
                         ))}
                         <div className="pt-4 mt-4 border-t border-slate-100 flex flex-col gap-3">
-                            <Link to="/login" onClick={() => setIsMenuOpen(false)}>
-                                <Button variant="ghost" className="w-full justify-start text-slate-600">
-                                    Log in
-                                </Button>
-                            </Link>
-
+                            {!isAuthenticated ? (
+                                <Link to="/login" onClick={() => setIsMenuOpen(false)}>
+                                    <Button variant="ghost" className="w-full justify-start text-slate-600">
+                                        Log in
+                                    </Button>
+                                </Link>
+                            ) : (
+                                <button
+                                    onClick={async () => {
+                                        setIsMenuOpen(false);
+                                        await logout();
+                                        window.location.href = '/';
+                                    }}
+                                    className="w-full flex items-center gap-3 px-3 py-3 rounded-md text-base font-medium text-red-600 hover:bg-red-50 transition-colors"
+                                >
+                                    <LogOut className="w-5 h-5" />
+                                    Logout
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

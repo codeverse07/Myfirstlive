@@ -152,9 +152,9 @@ const MobileHomePage = ({ services = [], categories = [] }) => {
     }
   };
 
-  const handleCategoryClick = (categoryId) => {
-    // Redirect to Services page with strict filtering
-    navigate('/services', { state: { category: categoryId } });
+  const handleCategoryClick = (category) => {
+    // Redirect to Services page with strict filtering using NAME because backend stores names
+    navigate('/services', { state: { category: category.name } });
   };
 
   // Show only 7 services on Home Page as requested

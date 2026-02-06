@@ -16,6 +16,7 @@ router.patch('/users/:id/status', adminController.toggleUserStatus); // Body: { 
 
 // --- TECHNICIAN MANAGEMENT ---
 router.get('/technicians', adminController.getAllTechnicians);
+router.post('/technicians', adminController.createTechnician);
 router.patch('/technicians/:id/approve', adminController.approveTechnician);
 router.patch('/technicians/:id/reject', adminController.rejectTechnician);
 

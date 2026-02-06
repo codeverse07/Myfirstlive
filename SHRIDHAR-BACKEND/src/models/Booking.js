@@ -38,8 +38,8 @@ const bookingSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
-    // Location & ETA Feature
-    userLocation: {
+    // Location & ETA Feature - Standardized location fields
+    location: {
         type: {
             type: String,
             default: 'Point',
@@ -48,8 +48,22 @@ const bookingSchema = new mongoose.Schema({
         coordinates: [Number], // [longitude, latitude]
         address: String
     },
-    pickupLocation: String,
-    dropLocation: String,
+    pickupLocation: {
+        type: {
+            type: String,
+            enum: ['Point']
+        },
+        coordinates: [Number],
+        address: String
+    },
+    dropLocation: {
+        type: {
+            type: String,
+            enum: ['Point']
+        },
+        coordinates: [Number],
+        address: String
+    },
     distance: Number, // in kilometers
     estimatedDuration: Number // in minutes
 }, {

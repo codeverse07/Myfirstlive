@@ -78,6 +78,24 @@ exports.getTechnicianReviews = async (req, res, next) => {
     }
 };
 
+exports.getAllReviews = async (req, res, next) => {
+    try {
+        const reviews = await Review.find()
+            .populate('customer', 'name profilePhoto')
+            .populate('technician', 'name')
+            .populate('booking', 'status scheduledAt')
+            .sort('-createdAt');
+
+        res.status(200).json({
+            status: 'success',
+            results: reviews.length,
+            data: { reviews }
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
 exports.updateReview = async (req, res, next) => {
     try {
         const { rating, review } = req.body;

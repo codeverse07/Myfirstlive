@@ -9,7 +9,7 @@ const feedbackSchema = new mongoose.Schema({
     category: {
         type: String,
         required: [true, 'Please provide a category for your feedback.'],
-        enum: ['General', 'Bug Report', 'Feature Request', 'Category Request', 'Technical Issue', 'Other'],
+        enum: ['General', 'Bug Report', 'Feature Request', 'Category Request', 'Technical Issue', 'Other', 'Improvements', 'New Service', 'Grievance'],
         default: 'General'
     },
     message: {
@@ -21,8 +21,8 @@ const feedbackSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['pending', 'reviewed', 'resolved', 'ignored'],
-        default: 'pending'
+        enum: ['PENDING', 'REVIEWED', 'RESOLVED', 'IGNORED'],
+        default: 'PENDING'
     },
     createdAt: {
         type: Date,

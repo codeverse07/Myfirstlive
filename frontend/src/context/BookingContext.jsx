@@ -135,8 +135,12 @@ export const BookingProvider = ({ children }) => {
                 dropLocation
             };
 
-            // Remove undefined fields
-            Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
+            // Remove undefined or empty string fields
+            Object.keys(payload).forEach(key => {
+                if (payload[key] === undefined || payload[key] === '') {
+                    delete payload[key];
+                }
+            });
 
             const res = await client.post('/bookings', payload);
 
@@ -171,8 +175,29 @@ export const BookingProvider = ({ children }) => {
         }
     };
 
+    const processPayment = async (bookingId, paymentMethod) => {
+        try {
+            const res = await client.post('/payments/process', {
+                bookingId,
+                paymentMethod: paymentMethod || 'card'
+            });
+
+            if (res.data.status === 'success') {
+                toast.success('Payment processed successfully');
+                // Refresh bookings to get updated status
+                fetchBookings();
+                return res.data.data;
+            }
+        } catch (err) {
+            console.error("Payment processing failed", err);
+            const message = err.response?.data?.message || "Payment failed. Please try again.";
+            toast.error(message);
+            throw err;
+        }
+    };
+
     return (
-        <BookingContext.Provider value={{ bookings, isLoading, fetchBookings, addBooking, cancelBooking, updateBookingStatus }}>
+        <BookingContext.Provider value={{ bookings, isLoading, fetchBookings, addBooking, cancelBooking, updateBookingStatus, processPayment }}>
             {children}
         </BookingContext.Provider>
     );

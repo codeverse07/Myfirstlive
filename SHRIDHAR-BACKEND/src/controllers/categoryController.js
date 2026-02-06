@@ -3,6 +3,12 @@ const AppError = require('../utils/AppError');
 
 exports.getAllCategories = async (req, res, next) => {
     try {
+        // Add caching headers for categories (they change rarely)
+        res.set({
+            'Cache-Control': 'public, max-age=1800', // 30 minutes cache
+            'ETag': Date.now().toString(),
+        });
+
         const categories = await Category.find({ isActive: true }).sort('order');
 
         res.status(200).json({

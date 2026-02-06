@@ -14,7 +14,7 @@ router.use(authMiddleware.protect);
 
 router.patch('/updatePassword', authController.updatePassword);
 
-router.get('/me', authController.getMe, userController.getUser);
+// Duplicate endpoint removed - use /auth/me instead
 router.patch('/update-me', upload.single('profilePhoto'), validate(userValidation.updateMe), userController.updateMe);
 router.delete('/delete-me', userController.deleteMe);
 

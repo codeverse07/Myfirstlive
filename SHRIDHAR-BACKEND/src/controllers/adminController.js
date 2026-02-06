@@ -7,6 +7,51 @@ const Settings = require('../models/Settings');
 const AppError = require('../utils/AppError');
 const adminService = require('../services/adminService');
 
+exports.createTechnician = async (req, res, next) => {
+    try {
+        const { name, email, password, phone, bio, skills } = req.body;
+
+        // Check if user already exists
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return next(new AppError('User with this email already exists', 400));
+        }
+
+        // Create user with TECHNICIAN role
+        const user = await User.create({
+            name,
+            email,
+            password,
+            phone,
+            role: 'TECHNICIAN',
+            isTechnicianOnboarded: true
+        });
+
+        // Create technician profile
+        const technicianProfile = await TechnicianProfile.create({
+            user: user._id,
+            bio: bio || '',
+            skills: skills || [],
+            documents: {
+                verificationStatus: 'PENDING'
+            }
+        });
+
+        // Populate user data in response
+        await technicianProfile.populate('user', 'name email phone');
+
+        res.status(201).json({
+            status: 'success',
+            data: {
+                user,
+                profile: technicianProfile
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 exports.getDashboardStats = async (req, res, next) => {
     try {
         // Run aggregation queries in parallel for performance

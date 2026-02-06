@@ -11,7 +11,7 @@ import MobileHeader from '../../components/mobile/MobileHeader';
 import MobileBottomNav from '../../components/mobile/MobileBottomNav';
 import MobileServiceDetail from '../../pages/Services/MobileServiceDetail';
 import BookingModal from '../../components/bookings/BookingModal';
-import client from '../../api/client';
+import { useServices, useCategories, usePrefetchService, useOptimisticSaveService } from '../../hooks/useServices';
 
 
 
@@ -24,39 +24,33 @@ const ServicesPage = () => {
     // const { services, categories } = useAdmin(); // REMOVED: AdminContext is now protected
     const { isAuthenticated, savedServices, toggleSavedService } = useUser();
 
-    // Local state for public data
-    const [services, setServices] = useState([]);
-    const [categories, setCategories] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
+    // Initialize category from state if available
+    const [selectedCategory, setSelectedCategory] = useState(location.state?.category || 'All');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [minRating, setMinRating] = useState(0);
+    const [maxPrice, setMaxPrice] = useState(5000); // Default max price
 
-    // Fetch Public Data
-    useEffect(() => {
-        const fetchPublicData = async () => {
-            try {
-                const [servicesRes, categoriesRes] = await Promise.all([
-                    client.get('/services'),
-                    client.get('/categories')
-                ]);
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const servicesPerPage = 12;
 
-                if (servicesRes.data.data) {
-                    // Handle various response structures if needed, but standard is data.data.services
-                    const rawServices = servicesRes.data.data.services || servicesRes.data.data.docs || [];
-                    setServices(rawServices);
-                }
+    // Use React Query for data fetching with caching
+    const { data: servicesData = {}, isLoading: servicesLoading, error: servicesError } = useServices({
+        page: currentPage,
+        limit: servicesPerPage,
+        search: searchQuery,
+        category: selectedCategory !== 'All' ? selectedCategory : undefined,
+        minRating,
+        maxPrice
+    });
+    const { data: categories = [], isLoading: categoriesLoading } = useCategories();
+    const prefetchService = usePrefetchService();
+    const optimisticSaveService = useOptimisticSaveService();
 
-                if (categoriesRes.data.data) {
-                    const fetchedCats = categoriesRes.data.data.categories || [];
-                    setCategories(fetchedCats);
-                }
-            } catch (err) {
-                console.error("Failed to fetch public services:", err);
-            } finally {
-                setIsLoading(false);
-            }
-        };
+    const { services = [], pagination = {} } = servicesData;
+    const { totalPages = 1, total = 0 } = pagination;
 
-        fetchPublicData();
-    }, []);
+    const isLoading = servicesLoading || categoriesLoading;
 
     const activeCategories = React.useMemo(() => {
         // 1. Get categories from API
@@ -83,18 +77,13 @@ const ServicesPage = () => {
 
     const activeServices = React.useMemo(() => services.filter(s => s.isActive !== false), [services]);
 
-    // Initialize category from state if available
-    const [selectedCategory, setSelectedCategory] = useState(location.state?.category || 'All');
-
     // Update state if location changes
     useEffect(() => {
         if (location.state?.category) {
             setSelectedCategory(location.state.category);
         }
     }, [location.state]);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [minRating, setMinRating] = useState(0);
-    const [maxPrice, setMaxPrice] = useState(5000); // Default max price
+
     const [selectedService, setSelectedService] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
@@ -140,31 +129,10 @@ const ServicesPage = () => {
         return () => observer.disconnect();
     }, [selectedCategory, searchQuery]); // Re-run when list changes
 
-    // Filter services based on category and search
-    const filteredServices = activeServices.filter((service) => {
-        const serviceCat = service.category?.toLowerCase() || '';
-        const selectedCat = selectedCategory.toLowerCase();
-
-        // Improved matching: exact, slugified, or name match
-        const matchesCategory =
-            selectedCategory === 'All' ||
-            serviceCat === selectedCat ||
-            serviceCat.replace(/\s+/g, '-') === selectedCat ||
-            serviceCat.replace(/-/g, ' ') === selectedCat;
-
-        const matchesSearch = service.title
-            .toLowerCase()
-            .includes(searchQuery.toLowerCase());
-
-        // Rating Filter: service rating must be >= selected minRating
-        const matchesRating = (service.rating || 0) >= minRating;
-
-        // Price Filter: service price must be <= selected maxPrice
-        // Ensure service.price is treated as a number
-        const matchesPrice = (Number(service.price) || 0) <= maxPrice;
-
-        return matchesCategory && matchesSearch && matchesRating && matchesPrice;
-    });
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [selectedCategory, searchQuery, minRating, maxPrice]);
 
     // Handle back logic
     const handleBack = () => {
@@ -176,7 +144,6 @@ const ServicesPage = () => {
             navigate('/login');
             return;
         }
-
 
         setSelectedService(service);
         // On mobile we might want to go straight to booking or details? 
@@ -192,6 +159,30 @@ const ServicesPage = () => {
         }
     };
 
+    // Prefetch service details on hover
+    const handleServiceHover = (service) => {
+        const serviceId = service.id || service._id;
+        if (serviceId) {
+            prefetchService(serviceId);
+        }
+    };
+
+    // Handle errors gracefully
+    if (servicesError) {
+        console.error("Failed to fetch services:", servicesError);
+    }
+
+    // Optimistic save service handler
+    const handleToggleSaveService = (serviceId) => {
+        const isCurrentlySaved = savedServices.includes(serviceId);
+
+        // Optimistically update the UI
+        optimisticSaveService(serviceId, !isCurrentlySaved);
+
+        // Call the actual toggle function
+        toggleSavedService(serviceId);
+    };
+
     const handleConfirmBooking = async (bookingData) => {
         try {
             await addBooking(bookingData);
@@ -204,13 +195,16 @@ const ServicesPage = () => {
 
     const getCategoryIcon = (catOrId) => {
         // If passed a category object, check for its icon field first
-        const iconName = typeof catOrId === 'object' ? catOrId.icon : catOrId;
+        const iconName = typeof catOrId === 'object' ? (catOrId.icon || catOrId.name) : catOrId;
 
         const icons = {
             carpentry: <Hammer className="w-5 h-5" />,
-            electrical: <Zap className="w-5 h-5" />,
-            homeappliance: <Refrigerator className="w-5 h-5" />,
+            plumbing: <Droplets className="w-5 h-5" />,
             plumber: <Droplets className="w-5 h-5" />,
+            electrical: <Zap className="w-5 h-5" />,
+            electrician: <Zap className="w-5 h-5" />,
+            homeappliance: <Refrigerator className="w-5 h-5" />,
+            appliances: <Refrigerator className="w-5 h-5" />,
             transport: <Truck className="w-5 h-5" />,
             houseshifting: <Home className="w-5 h-5" />,
             cleaning: <Sparkles className="w-5 h-5" />,
@@ -222,7 +216,7 @@ const ServicesPage = () => {
             carwash: <Droplets className="w-5 h-5" />
         };
 
-        const Icon = iconName ? (icons[iconName.toLowerCase()] || icons[iconName]) : null;
+        const Icon = iconName ? (icons[iconName.toLowerCase().replace(/\s+/g, '')] || icons[iconName.toLowerCase()] || icons[iconName]) : null;
         return Icon || <Grid className="w-5 h-5" />;
     };
 
@@ -254,8 +248,8 @@ const ServicesPage = () => {
     const sortedCategories = selectedCategory === 'All'
         ? activeCategories
         : [
-            activeCategories.find(c => c.id === selectedCategory),
-            ...activeCategories.filter(c => c.id !== selectedCategory)
+            activeCategories.find(c => c.name === selectedCategory),
+            ...activeCategories.filter(c => c.name !== selectedCategory)
         ].filter(Boolean);
 
     return (
@@ -278,7 +272,7 @@ const ServicesPage = () => {
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6 md:mb-10 animate-item">
                     <div>
                         <h1 className="text-2xl md:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">Browse Services</h1>
-                        <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm md:text-lg">Connect with {filteredServices.length} top-rated professionals in your area.</p>
+                        <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm md:text-lg">Connect with {total} top-rated professionals in your area.</p>
                     </div>
 
                     <div className="flex gap-3 w-full md:w-auto">
@@ -317,21 +311,21 @@ const ServicesPage = () => {
                                 </label>
                                 {sortedCategories.map((cat) => (
                                     <label key={cat.id} className="flex items-center gap-3 cursor-pointer group p-2 -mx-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${selectedCategory === cat.id ? 'border-rose-600 md:border-blue-600' : 'border-slate-300 dark:border-slate-700 group-hover:border-slate-400 dark:group-hover:border-slate-500'}`}>
-                                            {selectedCategory === cat.id && <div className="w-2.5 h-2.5 rounded-full bg-rose-600 md:bg-blue-600" />}
+                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${selectedCategory === cat.name ? 'border-rose-600 md:border-blue-600' : 'border-slate-300 dark:border-slate-700 group-hover:border-slate-400 dark:group-hover:border-slate-500'}`}>
+                                            {selectedCategory === cat.name && <div className="w-2.5 h-2.5 rounded-full bg-rose-600 md:bg-blue-600" />}
                                         </div>
                                         <input
                                             type="radio"
                                             name="category"
                                             className="hidden"
-                                            checked={selectedCategory === cat.id}
-                                            onChange={() => setSelectedCategory(cat.id)}
+                                            checked={selectedCategory === cat.name}
+                                            onChange={() => setSelectedCategory(cat.name)}
                                         />
                                         <div className="flex items-center gap-2.5">
-                                            <div className={`transition-colors ${selectedCategory === cat.id ? 'text-rose-600 md:text-blue-600' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600'}`}>
+                                            <div className={`transition-colors ${selectedCategory === cat.name ? 'text-rose-600 md:text-blue-600' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600'}`}>
                                                 {getCategoryIcon(cat)}
                                             </div>
-                                            <span className={`text-sm font-medium ${selectedCategory === cat.id ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200'}`}>{cat.name}</span>
+                                            <span className={`text-sm font-medium ${selectedCategory === cat.name ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200'}`}>{cat.name}</span>
                                         </div>
                                     </label>
                                 ))}
@@ -439,10 +433,10 @@ const ServicesPage = () => {
                                     {sortedCategories.map(cat => (
                                         <button
                                             key={cat.id}
-                                            onClick={() => setSelectedCategory(cat.id)}
-                                            className={`px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all shadow-sm flex items-center gap-1.5 ${selectedCategory === cat.id ? 'bg-rose-600 text-white shadow-rose-600/20' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800'}`}
+                                            onClick={() => setSelectedCategory(cat.name)}
+                                            className={`px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all shadow-sm flex items-center gap-1.5 ${selectedCategory === cat.name ? 'bg-rose-600 text-white shadow-rose-600/20' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800'}`}
                                         >
-                                            <span className={selectedCategory === cat.id ? 'text-white' : 'text-rose-600'}>
+                                            <span className={selectedCategory === cat.name ? 'text-white' : 'text-rose-600'}>
                                                 {getCategoryIcon(cat)}
                                             </span>
                                             {cat.name}
@@ -471,10 +465,10 @@ const ServicesPage = () => {
                                     {activeCategories.map(cat => (
                                         <button
                                             key={cat.id}
-                                            onClick={() => { setSelectedCategory(cat.id); setIsCategoriesExpanded(false); }}
-                                            className={`p-3 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all border ${selectedCategory === cat.id ? 'bg-rose-600 text-white border-rose-600 shadow-lg shadow-rose-600/20' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:shadow-md'}`}
+                                            onClick={() => { setSelectedCategory(cat.name); setIsCategoriesExpanded(false); }}
+                                            className={`p-3 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all border ${selectedCategory === cat.name ? 'bg-rose-600 text-white border-rose-600 shadow-lg shadow-rose-600/20' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:shadow-md'}`}
                                         >
-                                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${selectedCategory === cat.id ? 'bg-white/20' : 'bg-slate-50 dark:bg-slate-800 text-rose-600'}`}>
+                                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${selectedCategory === cat.name ? 'bg-white/20' : 'bg-slate-50 dark:bg-slate-800 text-rose-600'}`}>
                                                 {getCategoryIcon(cat)}
                                             </div>
                                             <span className="text-[10px] font-black uppercase tracking-tight text-center leading-tight">{cat.name}</span>
@@ -499,133 +493,161 @@ const ServicesPage = () => {
                             <div className="flex justify-center items-center py-20">
                                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-600"></div>
                             </div>
-                        ) : filteredServices.length > 0 ? (
-                            <div className="filter-services-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
-                                {filteredServices.map((service, idx) => {
-                                    const uniqueKey = service.id || service._id || idx;
-                                    return (
-                                        <motion.div
-                                            key={uniqueKey}
-                                            variants={itemVariants}
-                                            layout
-                                            data-id={service.id}
-                                            className={`service-card-item relative rounded-4xl shadow-md dark:shadow-black/40 ring-1 ring-transparent dark:ring-white/5 transition-all duration-300 transform scale-100 rotating-border group ${String(activeCardId) === String(service.id) ? 'active' : ''}`}
+                        ) : activeServices.length > 0 ? (
+                            <>
+                                <div className="filter-services-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+                                    {activeServices.map((service, idx) => {
+                                        const uniqueKey = service.id || service._id || idx;
+                                        return (
+                                            <motion.div
+                                                key={uniqueKey}
+                                                variants={itemVariants}
+                                                layout
+                                                data-id={service.id}
+                                                className={`service-card-item relative rounded-4xl shadow-md dark:shadow-black/40 ring-1 ring-transparent dark:ring-white/5 transition-all duration-300 transform scale-100 rotating-border group ${String(activeCardId) === String(service.id) ? 'active' : ''}`}
+                                                onMouseEnter={() => handleServiceHover(service)}
+                                            >
+                                                <div className="rounded-4xl overflow-hidden w-full h-full relative z-10 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/50 transition-colors isolation-isolate">
+                                                    {/* Image Section */}
+                                                    <div className="h-56 relative overflow-hidden rounded-t-4xl">
+                                                        <img
+                                                            src={service.image || service.headerImage}
+                                                            alt={service.title}
+                                                            crossOrigin="anonymous"
+                                                            referrerPolicy="no-referrer"
+                                                            className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
+                                                        />
+                                                        <div className="absolute top-0 inset-x-0 h-16 bg-linear-to-b from-black/50 to-transparent"></div>
+
+                                                        <div className="absolute top-5 left-5">
+                                                            <span className="bg-white/90 dark:bg-black/80 backdrop-blur text-black dark:text-white text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-wide shadow-sm">
+                                                                Best Seller
+                                                            </span>
+                                                        </div>
+                                                        <div className="absolute top-5 right-5 flex flex-col gap-2">
+
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleToggleSaveService(service.id || service._id);
+                                                                }}
+                                                                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${savedServices.includes(service.id || service._id) ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/30' : 'bg-white/20 backdrop-blur text-white hover:bg-white/40'}`}
+                                                            >
+                                                                <Heart className={`w-4 h-4 ${savedServices.includes(service.id || service._id) ? 'fill-current' : ''}`} />
+                                                            </button>
+                                                        </div>
+
+                                                        {/* ETA Badge */}
+                                                        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-medium text-white flex items-center gap-1 z-20">
+                                                            {(() => {
+                                                                const techCoords = service.technician?.technicianProfile?.location?.coordinates;
+                                                                if (!userCoords || !techCoords) return <span className="text-gray-300">Enable Location for ETA</span>;
+
+                                                                const toRad = (value) => (value * Math.PI) / 180;
+                                                                const R = 6371; // km
+                                                                const [lon1, lat1] = userCoords;
+                                                                const [lon2, lat2] = techCoords;
+
+                                                                const dLat = toRad(lat2 - lat1);
+                                                                const dLon = toRad(lon2 - lon1);
+                                                                const a =
+                                                                    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                                                                    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                                                                    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                                                                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                                                                const distance = parseFloat((R * c).toFixed(1));
+                                                                const eta = Math.ceil((distance / 30) * 60 + 10);
+
+                                                                return (
+                                                                    <>
+                                                                        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                                                                        <span>{eta} min ({distance} km)</span>
+                                                                    </>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Text Content */}
+                                                    <div className="p-5">
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <h3 className="text-xl font-extrabold text-gray-900 dark:text-white leading-tight">{service.title}</h3>
+                                                            <div className="bg-green-700 text-white text-xs font-bold px-2 py-0.5 rounded-lg flex items-center gap-0.5 shadow-sm">
+                                                                {service.rating > 0 ? (
+                                                                    <>
+                                                                        {service.rating} <Star className="w-2.5 h-2.5 fill-current" />
+                                                                    </>
+                                                                ) : (
+                                                                    "New"
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-start gap-1.5 text-[11px] font-bold text-gray-500 dark:text-slate-400 mb-4 uppercase tracking-wide">
+                                                            <SlidersHorizontal className="w-3.5 h-3.5" />
+                                                            <span>{service.category}</span>
+                                                            <span className="mx-1">•</span>
+                                                            <span>Home Services</span>
+                                                        </div>
+
+                                                        <div className="flex items-center justify-between border-t border-dashed border-gray-100 dark:border-slate-800 pt-4 gap-2">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-[10px] text-gray-400 dark:text-slate-500 font-bold uppercase line-through">₹{service.price + 300}</span>
+                                                                <span className="text-lg font-black text-gray-900 dark:text-white">₹{service.price}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        navigate(`/services/${service.id || service._id}`);
+                                                                    }}
+                                                                    className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors border border-transparent"
+                                                                >
+                                                                    View Details
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleBookClick(service);
+                                                                    }}
+                                                                    className="bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide hover:bg-rose-600 hover:text-white transition-colors"
+                                                                >
+                                                                    Book Now
+                                                                </button>
+                                                            </div>
+
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Pagination Controls */}
+                                {totalPages > 1 && (
+                                    <div className="flex justify-center items-center gap-4 mt-8 bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800">
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                            disabled={currentPage === 1}
+                                            className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                                         >
-                                            <div className="rounded-4xl overflow-hidden w-full h-full relative z-10 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-800/50 transition-colors isolation-isolate">
-                                                {/* Image Section */}
-                                                <div className="h-56 relative overflow-hidden rounded-t-4xl">
-                                                    <img
-                                                        src={service.image || service.headerImage}
-                                                        alt={service.title}
-                                                        crossOrigin="anonymous"
-                                                        referrerPolicy="no-referrer"
-                                                        className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-500"
-                                                    />
-                                                    <div className="absolute top-0 inset-x-0 h-16 bg-linear-to-b from-black/50 to-transparent"></div>
+                                            Previous
+                                        </button>
 
-                                                    <div className="absolute top-5 left-5">
-                                                        <span className="bg-white/90 dark:bg-black/80 backdrop-blur text-black dark:text-white text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-wide shadow-sm">
-                                                            Best Seller
-                                                        </span>
-                                                    </div>
-                                                    <div className="absolute top-5 right-5 flex flex-col gap-2">
+                                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                                            Page {currentPage} of {totalPages}
+                                        </span>
 
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                toggleSavedService(service.id);
-                                                            }}
-                                                            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${savedServices.includes(service.id) ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/30' : 'bg-white/20 backdrop-blur text-white hover:bg-white/40'}`}
-                                                        >
-                                                            <Heart className={`w-4 h-4 ${savedServices.includes(service.id) ? 'fill-current' : ''}`} />
-                                                        </button>
-                                                    </div>
-
-                                                    {/* ETA Badge */}
-                                                    <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-medium text-white flex items-center gap-1 z-20">
-                                                        {(() => {
-                                                            const techCoords = service.technician?.technicianProfile?.location?.coordinates;
-                                                            if (!userCoords || !techCoords) return <span className="text-gray-300">Enable Location for ETA</span>;
-
-                                                            const toRad = (value) => (value * Math.PI) / 180;
-                                                            const R = 6371; // km
-                                                            const [lon1, lat1] = userCoords;
-                                                            const [lon2, lat2] = techCoords;
-
-                                                            const dLat = toRad(lat2 - lat1);
-                                                            const dLon = toRad(lon2 - lon1);
-                                                            const a =
-                                                                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                                                                Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-                                                                Math.sin(dLon / 2) * Math.sin(dLon / 2);
-                                                            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                                                            const distance = parseFloat((R * c).toFixed(1));
-                                                            const eta = Math.ceil((distance / 30) * 60 + 10);
-
-                                                            return (
-                                                                <>
-                                                                    <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-                                                                    <span>{eta} min ({distance} km)</span>
-                                                                </>
-                                                            );
-                                                        })()}
-                                                    </div>
-                                                </div>
-
-                                                {/* Text Content */}
-                                                <div className="p-5">
-                                                    <div className="flex justify-between items-start mb-2">
-                                                        <h3 className="text-xl font-extrabold text-gray-900 dark:text-white leading-tight">{service.title}</h3>
-                                                        <div className="bg-green-700 text-white text-xs font-bold px-2 py-0.5 rounded-lg flex items-center gap-0.5 shadow-sm">
-                                                            {service.rating > 0 ? (
-                                                                <>
-                                                                    {service.rating} <Star className="w-2.5 h-2.5 fill-current" />
-                                                                </>
-                                                            ) : (
-                                                                "New"
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-start gap-1.5 text-[11px] font-bold text-gray-500 dark:text-slate-400 mb-4 uppercase tracking-wide">
-                                                        <SlidersHorizontal className="w-3.5 h-3.5" />
-                                                        <span>{service.category}</span>
-                                                        <span className="mx-1">•</span>
-                                                        <span>Home Services</span>
-                                                    </div>
-
-                                                    <div className="flex items-center justify-between border-t border-dashed border-gray-100 dark:border-slate-800 pt-4 gap-2">
-                                                        <div className="flex flex-col">
-                                                            <span className="text-[10px] text-gray-400 dark:text-slate-500 font-bold uppercase line-through">₹{service.price + 300}</span>
-                                                            <span className="text-lg font-black text-gray-900 dark:text-white">₹{service.price}</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    navigate(`/services/${service.id || service._id}`);
-                                                                }}
-                                                                className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors border border-transparent"
-                                                            >
-                                                                View Details
-                                                            </button>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    handleBookClick(service);
-                                                                }}
-                                                                className="bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide hover:bg-rose-600 hover:text-white transition-colors"
-                                                            >
-                                                                Book Now
-                                                            </button>
-                                                        </div>
-
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </motion.div>
-                                    );
-                                })}
-                            </div>
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                            disabled={currentPage === totalPages}
+                                            className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                )}
+                            </>
                         ) : (
                             <div className="flex flex-col items-center justify-center py-24 bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 text-center">
                                 <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
@@ -637,7 +659,7 @@ const ServicesPage = () => {
                                 </p>
                                 <Button
                                     variant="outline"
-                                    onClick={() => { setSelectedCategory('All'); setSearchQuery(''); }}
+                                    onClick={() => { setSelectedCategory('All'); setSearchQuery(''); setMinRating(0); setMaxPrice(5000); }}
                                     className="dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                                 >
                                     Clear all filters

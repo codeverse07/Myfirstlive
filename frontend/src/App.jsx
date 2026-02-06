@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BookingProvider } from './context/BookingContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { UserProvider } from './context/UserContext';
@@ -32,6 +33,19 @@ import TechnicianOnboardingPage from './pages/BeAPartner/TechnicianOnboardingPag
 import TechnicianDashboard from './pages/Technician/TechnicianDashboard';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import './App.css';
+
+// Create a client for React Query
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      cacheTime: 10 * 60 * 1000, // 10 minutes
+      retry: 3,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+    },
+  },
+});
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -119,22 +133,24 @@ function AnimatedRoutes() {
 
 function App() {
   return (
-    <UserProvider>
-      <BookingProvider>
-        <AdminProvider>
-          <TechnicianProvider>
-            <ThemeProvider>
-              <SoundProvider>
-                <Router>
-                  <AnimatedRoutes />
-                  <Toaster position="top-center" />
-                </Router>
-              </SoundProvider>
-            </ThemeProvider>
-          </TechnicianProvider>
-        </AdminProvider>
-      </BookingProvider>
-    </UserProvider>
+    <QueryClientProvider client={queryClient}>
+      <UserProvider>
+        <BookingProvider>
+          <AdminProvider>
+            <TechnicianProvider>
+              <ThemeProvider>
+                <SoundProvider>
+                  <Router>
+                    <AnimatedRoutes />
+                    <Toaster position="top-center" />
+                  </Router>
+                </SoundProvider>
+              </ThemeProvider>
+            </TechnicianProvider>
+          </AdminProvider>
+        </BookingProvider>
+      </UserProvider>
+    </QueryClientProvider>
   );
 }
 

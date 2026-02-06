@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAdmin } from '../../context/AdminContext';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Layout, Wallet, Share2, LogOut, Settings, ChevronRight, Zap, Wrench, Users, Plus, Edit2, Check, X, Search, Star, Phone, Mail, Sparkles, Tag, PlusCircle, FolderPlus, MessageSquarePlus, Clock, User as UserIcon, Image as ImageIcon } from 'lucide-react';
+import { Shield, Layout, Wallet, Share2, LogOut, Settings, ChevronRight, Zap, Wrench, Users, Plus, Edit2, Check, X, Search, Star, Phone, Mail, Sparkles, Tag, PlusCircle, FolderPlus, MessageSquarePlus, Clock, User as UserIcon, Image as ImageIcon, Loader } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const AdminDashboard = () => {
@@ -22,6 +22,7 @@ const AdminDashboard = () => {
     // Document Viewing State
     const [viewingDocsBy, setViewingDocsBy] = React.useState(null);
     const [filteringTech, setFilteringTech] = React.useState(null);
+    const [actionLoading, setActionLoading] = React.useState({});
 
     React.useEffect(() => {
         if (!isAdminAuthenticated) {
@@ -58,20 +59,34 @@ const AdminDashboard = () => {
         { id: 'feedback', label: 'Feedback', icon: MessageSquarePlus },
     ];
 
-    const handleAddCategory = (e) => {
+    const handleAddCategory = async (e) => {
         e.preventDefault();
         if (!newCategory.name) return;
-        addCategory(newCategory);
-        setIsAddingCategory(false);
-        setNewCategory({ name: '', description: '', image: '', icon: 'Hammer', color: 'bg-indigo-100 text-indigo-600' });
+        setActionLoading(prev => ({ ...prev, addCategory: true }));
+        try {
+            await addCategory(newCategory);
+            setIsAddingCategory(false);
+            setNewCategory({ name: '', description: '', image: '', icon: 'Hammer', color: 'bg-indigo-100 text-indigo-600' });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setActionLoading(prev => ({ ...prev, addCategory: false }));
+        }
     };
 
-    const handleAddService = (e) => {
+    const handleAddService = async (e) => {
         e.preventDefault();
         if (!newService.title || !newService.category) return;
-        addService(newService);
-        setIsAddingService(false);
-        setNewService({ title: '', category: '', price: '', image: '', description: '' });
+        setActionLoading(prev => ({ ...prev, addService: true }));
+        try {
+            await addService(newService);
+            setIsAddingService(false);
+            setNewService({ title: '', category: '', price: '', image: '', description: '' });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setActionLoading(prev => ({ ...prev, addService: false }));
+        }
     };
 
     const handleApproveCategoryRequest = (fb) => {
@@ -117,8 +132,8 @@ const AdminDashboard = () => {
                             ))}
                         </div>
                         <button
-                            onClick={() => {
-                                logout();
+                            onClick={async () => {
+                                await logout();
                                 navigate('/admin/login');
                             }}
                             className="p-3 md:p-3.5 bg-white dark:bg-slate-900 text-slate-400 hover:text-red-500 rounded-2xl border border-slate-200 dark:border-slate-800 transition-all shadow-sm shrink-0"
@@ -457,20 +472,30 @@ const AdminDashboard = () => {
                                                 </button>
                                                 {tech.documents?.verificationStatus !== 'VERIFIED' && (
                                                     <button
-                                                        onClick={() => approveTechnician(tech._id || tech.id)}
-                                                        className="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-bold uppercase rounded-lg hover:bg-green-200 transition-colors"
+                                                        disabled={actionLoading[tech._id || tech.id]}
+                                                        onClick={async () => {
+                                                            setActionLoading(prev => ({ ...prev, [tech._id || tech.id]: true }));
+                                                            await approveTechnician(tech._id || tech.id);
+                                                            setActionLoading(prev => ({ ...prev, [tech._id || tech.id]: false }));
+                                                        }}
+                                                        className="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-bold uppercase rounded-lg hover:bg-green-200 transition-colors disabled:opacity-50"
                                                     >
-                                                        Approve
+                                                        {actionLoading[tech._id || tech.id] ? '...' : 'Approve'}
                                                     </button>
                                                 )}
                                                 {tech.documents?.verificationStatus !== 'REJECTED' && (
                                                     <button
-                                                        onClick={() => {
-                                                            if (window.confirm('Reject this technician?')) rejectTechnician(tech._id || tech.id)
+                                                        disabled={actionLoading[tech._id || tech.id]}
+                                                        onClick={async () => {
+                                                            if (window.confirm('Reject this technician?')) {
+                                                                setActionLoading(prev => ({ ...prev, [tech._id || tech.id]: true }));
+                                                                await rejectTechnician(tech._id || tech.id);
+                                                                setActionLoading(prev => ({ ...prev, [tech._id || tech.id]: false }));
+                                                            }
                                                         }}
-                                                        className="px-3 py-1 bg-red-100 text-red-700 text-[10px] font-bold uppercase rounded-lg hover:bg-red-200 transition-colors"
+                                                        className="px-3 py-1 bg-red-100 text-red-700 text-[10px] font-bold uppercase rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50"
                                                     >
-                                                        Reject
+                                                        {actionLoading[tech._id || tech.id] ? '...' : 'Reject'}
                                                     </button>
                                                 )}
                                             </div>
@@ -531,11 +556,18 @@ const AdminDashboard = () => {
                                                     <td className="p-5 text-right">
                                                         {booking.status !== 'CANCELLED' && booking.status !== 'COMPLETED' && (
                                                             <button
-                                                                onClick={() => { if (window.confirm('Force cancel this booking?')) cancelBooking(booking._id) }}
-                                                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                                disabled={actionLoading[booking._id]}
+                                                                onClick={async () => {
+                                                                    if (window.confirm('Force cancel this booking?')) {
+                                                                        setActionLoading(prev => ({ ...prev, [booking._id]: true }));
+                                                                        await cancelBooking(booking._id);
+                                                                        setActionLoading(prev => ({ ...prev, [booking._id]: false }));
+                                                                    }
+                                                                }}
+                                                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                                                                 title="Force Cancel"
                                                             >
-                                                                <X className="w-4 h-4" />
+                                                                {actionLoading[booking._id] ? <Loader className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
                                                             </button>
                                                         )}
                                                     </td>
@@ -594,17 +626,18 @@ const AdminDashboard = () => {
                                         </div>
 
                                         <button
-                                            onClick={() => {
+                                            disabled={actionLoading[user._id || user.id]}
+                                            onClick={async () => {
                                                 if (window.confirm(`Are you sure you want to ${user.isActive ? 'BLOCK' : 'ACTIVATE'} this user?`)) {
-                                                    toggleUserStatus(user._id || user.id, user.isActive);
+                                                    const id = user._id || user.id;
+                                                    setActionLoading(prev => ({ ...prev, [id]: true }));
+                                                    await toggleUserStatus(id, user.isActive);
+                                                    setActionLoading(prev => ({ ...prev, [id]: false }));
                                                 }
                                             }}
-                                            className={`w-full md:w-auto px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${user.isActive
-                                                ? 'bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border border-red-100'
-                                                : 'bg-green-600 text-white hover:bg-green-700 shadow-lg shadow-green-500/20'
-                                                }`}
+                                            className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 ${user.isActive ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}
                                         >
-                                            {user.isActive ? 'Block Access' : 'Restore Access'}
+                                            {actionLoading[user._id || user.id] ? 'Updating...' : (user.isActive ? 'Block User' : 'Activate User')}
                                         </button>
                                     </div>
                                 ))}
@@ -793,7 +826,13 @@ const AdminDashboard = () => {
                                         <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Description</label>
                                         <textarea required value={newCategory.description} onChange={e => setNewCategory({ ...newCategory, description: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl border-none focus:ring-2 ring-indigo-500/20 text-sm dark:text-white min-h-25" placeholder="Brief summary of category services..." />
                                     </div>
-                                    <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all mt-4">Create Category</button>
+                                    <button
+                                        type="submit"
+                                        disabled={actionLoading.addCategory}
+                                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all mt-4 disabled:opacity-50 flex items-center justify-center gap-2"
+                                    >
+                                        {actionLoading.addCategory ? <><Loader className="w-4 h-4 animate-spin" /> Creating...</> : 'Create Category'}
+                                    </button>
                                 </form>
                             </motion.div>
                         </div>
@@ -842,7 +881,13 @@ const AdminDashboard = () => {
                                         <Sparkles className="w-5 h-5 text-amber-500 shrink-0" />
                                         <p className="text-[10px] font-bold text-amber-700 dark:text-amber-400 leading-tight">By creating this service card, we will automatically generate **Basic**, **Premium**, and **Consultation** plans based on your base price.</p>
                                     </div>
-                                    <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all mt-2">Publish Service Card</button>
+                                    <button
+                                        type="submit"
+                                        disabled={actionLoading.addService}
+                                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all mt-2 disabled:opacity-50 flex items-center justify-center gap-2"
+                                    >
+                                        {actionLoading.addService ? <><Loader className="w-4 h-4 animate-spin" /> Publishing...</> : 'Publish Service Card'}
+                                    </button>
                                 </form>
                             </motion.div>
                         </div>
@@ -905,16 +950,32 @@ const AdminDashboard = () => {
                                     </div>
                                     <div className="flex gap-4 pt-4 border-t border-slate-100 dark:border-slate-800">
                                         <button
-                                            onClick={() => { approveTechnician(viewingDocsBy._id || viewingDocsBy.id); setViewingDocsBy(null); }}
-                                            className="flex-1 py-4 bg-green-600 text-white rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl shadow-green-500/20 hover:bg-green-700 transition-all"
+                                            disabled={actionLoading[viewingDocsBy._id || viewingDocsBy.id]}
+                                            onClick={async () => {
+                                                const id = viewingDocsBy._id || viewingDocsBy.id;
+                                                setActionLoading(prev => ({ ...prev, [id]: true }));
+                                                await approveTechnician(id);
+                                                setViewingDocsBy(null);
+                                                setActionLoading(prev => ({ ...prev, [id]: false }));
+                                            }}
+                                            className="flex-1 py-4 bg-green-600 text-white rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl shadow-green-500/20 hover:bg-green-700 transition-all disabled:opacity-50"
                                         >
-                                            Confirm & Approve
+                                            {actionLoading[viewingDocsBy._id || viewingDocsBy.id] ? 'Processing...' : 'Confirm & Approve'}
                                         </button>
                                         <button
-                                            onClick={() => { if (window.confirm('Reject?')) { rejectTechnician(viewingDocsBy._id || viewingDocsBy.id); setViewingDocsBy(null); } }}
-                                            className="flex-1 py-4 bg-red-50 text-red-600 rounded-2xl text-sm font-black uppercase tracking-widest border border-red-100 hover:bg-red-100 transition-all"
+                                            disabled={actionLoading[viewingDocsBy._id || viewingDocsBy.id]}
+                                            onClick={async () => {
+                                                if (window.confirm('Reject?')) {
+                                                    const id = viewingDocsBy._id || viewingDocsBy.id;
+                                                    setActionLoading(prev => ({ ...prev, [id]: true }));
+                                                    await rejectTechnician(id);
+                                                    setViewingDocsBy(null);
+                                                    setActionLoading(prev => ({ ...prev, [id]: false }));
+                                                }
+                                            }}
+                                            className="flex-1 py-4 bg-red-50 text-red-600 rounded-2xl text-sm font-black uppercase tracking-widest border border-red-100 hover:bg-red-100 transition-all disabled:opacity-50"
                                         >
-                                            Reject Expert
+                                            {actionLoading[viewingDocsBy._id || viewingDocsBy.id] ? 'Processing...' : 'Reject Expert'}
                                         </button>
                                     </div>
                                 </div>

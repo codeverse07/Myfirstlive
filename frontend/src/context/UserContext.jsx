@@ -123,7 +123,8 @@ export const UserProvider = ({ children }) => {
             toast.error('Logout failed');
         } finally {
             setUser(null);
-            // Optionally clear local preferences
+            // Clear local preferences or session-related data
+            localStorage.removeItem('admin_auth'); // Just in case
             // setSavedServices([]);
             // setAddresses([]);
         }
@@ -204,9 +205,9 @@ export const UserProvider = ({ children }) => {
             setIsChatOpen,
             savedServices,
             toggleSavedService,
-            addresses,
             addAddress,
             removeAddress,
+            submitFeedback,
             // Re-export specific helpers if needed
             updateAddress
         }}>

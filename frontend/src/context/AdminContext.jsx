@@ -234,8 +234,15 @@ export const AdminProvider = ({ children }) => {
         }
     };
 
-    const logout = () => {
-        setIsAdminAuthenticated(false);
+    const logout = async () => {
+        try {
+            await client.post('/auth/logout');
+        } catch (err) {
+            console.error("Admin logout error", err);
+        } finally {
+            setIsAdminAuthenticated(false);
+            localStorage.removeItem('admin_auth');
+        }
     };
 
     const toggleSetting = async (key) => {
@@ -262,6 +269,28 @@ export const AdminProvider = ({ children }) => {
             }
         } catch (err) {
             console.error("Failed to add category", err);
+        }
+    };
+
+    const updateCategory = async (id, categoryData) => {
+        try {
+            const res = await client.patch(`/categories/${id}`, categoryData);
+            if (res.data.status === 'success') {
+                setCategories(prev => prev.map(cat =>
+                    cat._id === id || cat.id === id ? { ...cat, ...res.data.data.category } : cat
+                ));
+            }
+        } catch (err) {
+            console.error("Failed to update category", err);
+        }
+    };
+
+    const deleteCategory = async (id) => {
+        try {
+            await client.delete(`/categories/${id}`);
+            setCategories(prev => prev.filter(cat => cat._id !== id && cat.id !== id));
+        } catch (err) {
+            console.error("Failed to delete category", err);
         }
     };
 
@@ -456,6 +485,8 @@ export const AdminProvider = ({ children }) => {
             logout,
             toggleSetting,
             addCategory,
+            updateCategory,
+            deleteCategory,
             addService,
             updateServicePrice,
             updateSubServicePrice,

@@ -4,7 +4,7 @@ import { useUser } from '../../context/UserContext';
 import { Switch } from '@headlessui/react';
 import {
     LayoutDashboard, ClipboardList, Wallet, User,
-    Bell, Clock, X, TrendingUp, Star
+    Bell, Clock, X, TrendingUp, Star, Loader, Check
 } from 'lucide-react';
 import TechnicianServices from './TechnicianServices';
 import TechnicianBookings from './TechnicianBookings';
@@ -20,6 +20,7 @@ const TechnicianDashboard = () => {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [isSidebarOpen, setSidebarOpen] = useState(true);
     const [isStatusUpdating, setIsStatusUpdating] = useState(false);
+    const [isSubmittingProfile, setIsSubmittingProfile] = useState(false);
 
     useEffect(() => {
         if (activeTab === 'dashboard') {
@@ -103,7 +104,10 @@ const TechnicianDashboard = () => {
                             </Switch>
                         </div>
                     </div>
-                    <button onClick={logout} className="w-full text-left px-4 py-2 text-red-500 text-sm font-bold hover:bg-red-50 rounded-lg transition-colors">
+                    <button onClick={async () => {
+                        await logout();
+                        window.location.href = '/';
+                    }} className="w-full text-left px-4 py-2 text-red-500 text-sm font-bold hover:bg-red-50 rounded-lg transition-colors">
                         Sign Out
                     </button>
                 </div>
@@ -369,18 +373,34 @@ const TechnicianDashboard = () => {
                                     </div>
 
                                     <button
+                                        disabled={isSubmittingProfile}
                                         onClick={async () => {
-                                            const skillsArray = editForm.skills.split(',').map(s => s.trim()).filter(Boolean);
-                                            await updateProfileData({
-                                                bio: editForm.bio,
-                                                skills: skillsArray,
-                                                profilePhoto: editForm.profilePhoto
-                                            });
-                                            setIsEditingProfile(false);
+                                            setIsSubmittingProfile(true);
+                                            try {
+                                                const skillsArray = editForm.skills.split(',').map(s => s.trim()).filter(Boolean);
+                                                await updateProfileData({
+                                                    bio: editForm.bio,
+                                                    skills: skillsArray,
+                                                    profilePhoto: editForm.profilePhoto
+                                                });
+                                                toast.success('Profile updated successfully');
+                                                setIsEditingProfile(false);
+                                            } catch (err) {
+                                                toast.error('Failed to update profile');
+                                            } finally {
+                                                setIsSubmittingProfile(false);
+                                            }
                                         }}
-                                        className="w-full py-3 md:py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 text-sm md:text-base"
+                                        className="w-full py-3 md:py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                     >
-                                        Save Changes
+                                        {isSubmittingProfile ? (
+                                            <>
+                                                <Loader className="w-4 h-4 animate-spin" />
+                                                Saving Changes...
+                                            </>
+                                        ) : (
+                                            'Save Changes'
+                                        )}
                                     </button>
                                 </div>
                             ) : (
