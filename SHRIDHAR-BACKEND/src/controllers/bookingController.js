@@ -24,7 +24,10 @@ exports.createBooking = async (req, res, next) => {
             const serviceDoc = await Service.findById(serviceId);
             if (!serviceDoc) return next(new AppError('Service not found', 404));
 
-            const categoryDoc = await Category.findOne({ name: serviceDoc.category });
+            // Case-insensitive lookup for robustness
+            const categoryDoc = await Category.findOne({
+                name: { $regex: new RegExp(`^${serviceDoc.category}$`, 'i') }
+            });
             if (categoryDoc) finalCategoryId = categoryDoc._id;
             finalServiceId = serviceId;
         } else if (categoryId) {
@@ -32,7 +35,9 @@ exports.createBooking = async (req, res, next) => {
             const potentialService = await Service.findById(categoryId);
             if (potentialService) {
                 finalServiceId = categoryId;
-                const categoryDoc = await Category.findOne({ name: potentialService.category });
+                const categoryDoc = await Category.findOne({
+                    name: { $regex: new RegExp(`^${potentialService.category}$`, 'i') }
+                });
                 if (categoryDoc) finalCategoryId = categoryDoc._id;
             }
         }
