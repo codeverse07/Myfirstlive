@@ -1,10 +1,10 @@
 import React, { useRef, useLayoutEffect, useState, useEffect } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { useCategories } from '../../hooks/useServices';
 import { useNavigate } from 'react-router-dom';
 import WorkerCharacter from './WorkerCharacter';
 import { Hammer, Zap, Refrigerator, Droplets, Truck, Home } from 'lucide-react';
-import { useCategories } from '../../hooks/useServices';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -79,7 +79,6 @@ const ServiceStack = () => {
         "quality service at transparent and upfront pricing"
     ];
 
-
     useLayoutEffect(() => {
         const ctx = gsap.context(() => {
             const cards = gsap.utils.toArray('.service-card');
@@ -148,15 +147,15 @@ const ServiceStack = () => {
                     trigger: card,
                     start: "top center", // When card hits center
                     end: "bottom center",
-                    onEnter: () => setActiveCardId(categories[index]?.id || categories[index]?._id),
-                    onEnterBack: () => setActiveCardId(categories[index]?.id || categories[index]?._id),
+                    onEnter: () => setActiveCardId(categories[index].id || categories[index]._id),
+                    onEnterBack: () => setActiveCardId(categories[index].id || categories[index]._id),
                 });
             });
 
         }, containerRef);
 
         return () => ctx.revert();
-    }, []);
+    }, [categories]); // Re-run if categories change
 
     return (
         <div ref={containerRef} className="relative w-full min-h-screen bg-slate-50 dark:bg-slate-950 py-20 px-4 md:px-10 transition-colors duration-300">
@@ -177,7 +176,7 @@ const ServiceStack = () => {
 
                 {categories.map((cat, index) => {
                     const isActive = activeCardId === (cat.id || cat._id);
-                    const Icon = iconMap[cat.icon] || Home; // Fallback icon
+                    const Icon = iconMap[cat.icon] || Home;
 
                     const colorName = cat.color?.includes('orange') ? 'orange' :
                         cat.color?.includes('blue') ? 'blue' :

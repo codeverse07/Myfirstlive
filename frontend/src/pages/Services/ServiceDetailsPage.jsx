@@ -114,7 +114,7 @@ const ServiceDetailsPage = () => {
                     <div className="max-w-7xl mx-auto">
                         <div className="flex items-center gap-2 mb-2 text-rose-400 font-bold uppercase tracking-wider text-sm">
                             <span className="bg-rose-500/20 px-3 py-1 rounded-full backdrop-blur-md border border-rose-500/30">
-                                {service.category}
+                                {typeof service.category === 'string' ? service.category : service.category?.name}
                             </span>
                         </div>
                         <h1 className="text-3xl md:text-5xl font-black mb-4">{service.title}</h1>

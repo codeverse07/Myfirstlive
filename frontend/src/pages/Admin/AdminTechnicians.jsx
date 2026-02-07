@@ -7,14 +7,11 @@ import { toast } from 'react-hot-toast';
 import client from '../../api/client';
 
 const AdminTechnicians = () => {
-    const { toggleUserStatus, addTechnician, categories, deleteTechnician } = useAdmin();
+    const { technicians: allTechnicians, toggleUserStatus, addTechnician, categories, deleteTechnician, isLoading, refreshData, updateTechnicianProfile } = useAdmin();
     const navigate = useNavigate();
 
     const [activeTab, setActiveTab] = React.useState('verified'); // 'verified' or 'pending'
-    const [technicians, setTechnicians] = React.useState([]);
-    const [loading, setLoading] = React.useState(true);
     const [page, setPage] = React.useState(1);
-    const [totalPages, setTotalPages] = React.useState(1);
     const [selectedCategory, setSelectedCategory] = React.useState('');
     const [isAddingTech, setIsAddingTech] = React.useState(false);
     const [viewingDocsBy, setViewingDocsBy] = React.useState(null);
@@ -22,40 +19,99 @@ const AdminTechnicians = () => {
     const [searchQuery, setSearchQuery] = React.useState('');
     const [newTech, setNewTech] = React.useState({ name: '', email: '', phone: '', bio: '', skills: '' });
 
+    // Profile Editing State
+    const [isEditingProfile, setIsEditingProfile] = React.useState(false);
+    const [editData, setEditData] = React.useState({ bio: '', skills: '', employeeId: '', name: '', phone: '', categories: [] });
+
+    const handleSaveProfile = async () => {
+        if (!viewingDocsBy) return;
+        setActionLoading(prev => ({ ...prev, saveProfile: true }));
+        try {
+            const formData = new FormData();
+            formData.append('bio', editData.bio);
+            formData.append('skills', editData.skills);
+            formData.append('employeeId', editData.employeeId);
+            formData.append('name', editData.name);
+            formData.append('phone', editData.phone);
+            formData.append('address', editData.address);
+
+            if (editData.categories && editData.categories.length > 0) {
+                editData.categories.forEach(catId => {
+                    formData.append('categories', catId);
+                });
+            }
+
+            if (editData.profilePhotoFile) {
+                formData.append('profilePhoto', editData.profilePhotoFile);
+            }
+
+            const res = await updateTechnicianProfile(viewingDocsBy._id || viewingDocsBy.id, formData);
+            if (res.success) {
+                setViewingDocsBy(res.data);
+                setIsEditingProfile(false);
+                toast.success("Expert profile updated successfully");
+            }
+        } catch (err) {
+            toast.error("Failed to update profile");
+        } finally {
+            setActionLoading(prev => ({ ...prev, saveProfile: false }));
+        }
+    };
+
     // Approval State
     const [approvalCategories, setApprovalCategories] = React.useState([]);
     const [filterOnline, setFilterOnline] = React.useState('all'); // 'all', 'online', 'offline'
 
-    const fetchTechnicians = async () => {
-        setLoading(true);
-        try {
-            const params = {
-                page,
-                limit: 9,
-                status: activeTab === 'pending' ? 'PENDING' : 'VERIFIED',
-                // search: searchQuery // Backend search not fully implemented for name?
-            };
-            if (activeTab === 'verified' && selectedCategory) {
-                params.category = selectedCategory;
+    // Derived State: Filtering
+    const filteredTechnicians = React.useMemo(() => {
+        if (!allTechnicians) return [];
+        return allTechnicians.filter(tech => {
+            const status = tech.documents?.verificationStatus || 'PENDING';
+
+            // Tab Filter
+            if (activeTab === 'verified') {
+                if (status !== 'VERIFIED') return false;
+            } else {
+                // Pending tab: shows PENDING. (Rejected? maybe separate tab or include here)
+                // For now, let's show PENDING.
+                if (status !== 'PENDING') return false;
             }
+
+            // Search Filter
+            if (searchQuery) {
+                const q = searchQuery.toLowerCase();
+                const name = tech.user?.name?.toLowerCase() || '';
+                const email = tech.user?.email?.toLowerCase() || '';
+                const phone = tech.user?.phone || '';
+                if (!name.includes(q) && !email.includes(q) && !phone.includes(q)) return false;
+            }
+
+            // Category Filter (only for verified)
+            if (activeTab === 'verified' && selectedCategory && selectedCategory !== 'all') {
+                const hasCat = tech.categories?.some(c => (c._id || c.id) === selectedCategory);
+                if (!hasCat) return false;
+            }
+
+            // Online Status Filter (only for verified)
             if (activeTab === 'verified' && filterOnline !== 'all') {
-                params.isOnline = filterOnline === 'online';
+                const isOnline = !!tech.isOnline;
+                if (filterOnline === 'online' && !isOnline) return false;
+                if (filterOnline === 'offline' && isOnline) return false;
             }
 
-            const res = await client.get('/admin/technicians', { params });
-            setTechnicians(res.data.data.technicians);
-            setTotalPages(res.data.totalPages);
-        } catch (err) {
-            console.error(err);
-            toast.error("Failed to load technicians");
-        } finally {
-            setLoading(false);
-        }
-    };
+            return true;
+        });
+    }, [allTechnicians, activeTab, searchQuery, selectedCategory, filterOnline]);
 
+    // Derived State: Pagination
+    const ITEMS_PER_PAGE = 9;
+    const totalPages = Math.ceil(filteredTechnicians.length / ITEMS_PER_PAGE) || 1;
+    const displayTechnicians = filteredTechnicians.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+
+    // Reset page when filters change
     React.useEffect(() => {
-        fetchTechnicians();
-    }, [activeTab, page, selectedCategory, filterOnline]);
+        setPage(1);
+    }, [activeTab, selectedCategory, filterOnline, searchQuery]);
 
     const handleAddTech = async (e) => {
         e.preventDefault();
@@ -64,7 +120,6 @@ const AdminTechnicians = () => {
             await addTechnician(newTech);
             setIsAddingTech(false);
             setNewTech({ name: '', email: '', phone: '', bio: '', skills: '' });
-            fetchTechnicians(); // Refresh list
             toast.success("Expert profile created");
         } catch (err) {
             toast.error("Failed to create profile");
@@ -76,17 +131,19 @@ const AdminTechnicians = () => {
     const handleToggleStatus = async (userId, currentStatus) => {
         setActionLoading(prev => ({ ...prev, [userId]: true }));
         try {
-            const newStatus = !currentStatus; // Calculate the desired status
-            await toggleUserStatus(userId, newStatus);
-            // Fix: Update local state to reflect the change immediately
-            setTechnicians(prev => prev.map(t =>
-                t.user?._id === userId ? { ...t, user: { ...t.user, isActive: newStatus } } : t
-            ));
+            await toggleUserStatus(userId, !currentStatus);
+            // No need to update local state, context updates global state
         } catch (err) {
-            // Error handling in context
+            // Error handled in context
         } finally {
             setActionLoading(prev => ({ ...prev, [userId]: false }));
         }
+    };
+
+    const toggleApprovalCategory = (catId) => {
+        setApprovalCategories(prev =>
+            prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]
+        );
     };
 
     const handleApprove = async (techId) => {
@@ -98,10 +155,10 @@ const AdminTechnicians = () => {
         setActionLoading(prev => ({ ...prev, [techId]: true }));
         try {
             await client.patch(`/admin/technicians/${techId}/approve`, { categoryIds: approvalCategories });
-            toast.success("Expert verifying & onboarded");
+            toast.success("Expert verified & onboarded");
             setViewingDocsBy(null);
             setApprovalCategories([]);
-            fetchTechnicians(); // Refresh to remove from pending
+            await refreshData();
         } catch (err) {
             console.error(err);
             toast.error("Verification failed");
@@ -111,25 +168,18 @@ const AdminTechnicians = () => {
     };
 
     const handleReject = async (techId) => {
-        if (!window.confirm("Reject this expert? They won't be able to provide services.")) return;
-
+        if (!window.confirm("Reject this application?")) return;
         setActionLoading(prev => ({ ...prev, [techId]: true }));
         try {
             await client.patch(`/admin/technicians/${techId}/reject`);
-            toast.success("Expert rejected");
+            toast.success("Application rejected");
             setViewingDocsBy(null);
-            fetchTechnicians();
+            await refreshData();
         } catch (err) {
-            toast.error("Rejection failed");
+            toast.error("Action failed");
         } finally {
             setActionLoading(prev => ({ ...prev, [techId]: false }));
         }
-    }
-
-    const toggleApprovalCategory = (catId) => {
-        setApprovalCategories(prev =>
-            prev.includes(catId) ? prev.filter(c => c !== catId) : [...prev, catId]
-        );
     };
 
     const StatusBadge = ({ tech }) => {
@@ -146,13 +196,6 @@ const AdminTechnicians = () => {
             {isOnline ? 'Online' : 'Offline'}
         </span>
     );
-
-    // Filter by search locally since backend API might not support complex search yet
-    const displayTechnicians = technicians.filter(tech => {
-        if (!searchQuery) return true;
-        return tech.user?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            tech.user?.email?.toLowerCase().includes(searchQuery.toLowerCase());
-    });
 
     return (
         <div className="space-y-8 max-w-7xl mx-auto pb-12">
@@ -240,7 +283,7 @@ const AdminTechnicians = () => {
             {/* Experts List (Horizontal Cards) */}
             <div className="flex flex-col gap-4">
                 <AnimatePresence mode="popLayout">
-                    {loading ? (
+                    {isLoading ? (
                         <div className="flex justify-center py-20">
                             <Loader className="w-8 h-8 text-indigo-500 animate-spin" />
                         </div>
@@ -334,8 +377,6 @@ const AdminTechnicians = () => {
                                             onClick={async () => {
                                                 if (window.confirm('Are you sure you want to PERMANENTLY delete this technician? This cannot be undone.')) {
                                                     await deleteTechnician(tech._id || tech.id);
-                                                    // Fix: Update local state to remove the deleted technician
-                                                    setTechnicians(prev => prev.filter(t => (t._id || t.id) !== (tech._id || tech.id)));
                                                 }
                                             }}
                                             className="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-all border border-red-100 hover:border-red-200"
@@ -353,8 +394,6 @@ const AdminTechnicians = () => {
                                             onClick={async () => {
                                                 if (window.confirm('Are you sure you want to PERMANENTLY delete this application?')) {
                                                     await deleteTechnician(tech._id || tech.id);
-                                                    // Fix: Update local state to remove the deleted technician
-                                                    setTechnicians(prev => prev.filter(t => (t._id || t.id) !== (tech._id || tech.id)));
                                                 }
                                             }}
                                             className="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-all border border-red-100 hover:border-red-200"
@@ -369,7 +408,7 @@ const AdminTechnicians = () => {
                     ))}
                 </AnimatePresence>
 
-                {!loading && displayTechnicians.length === 0 && (
+                {!isLoading && displayTechnicians.length === 0 && (
                     <div className="py-24 text-center">
                         <div className="w-20 h-20 bg-slate-100 dark:bg-slate-900 rounded-[2.5rem] flex items-center justify-center mx-auto text-slate-300 mb-6">
                             <Users className="w-10 h-10" />
@@ -413,76 +452,261 @@ const AdminTechnicians = () => {
                         >
                             <div className="p-10 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/20">
                                 <div className="flex items-center gap-6">
-                                    <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-xl ring-4 ring-indigo-500/20">
-                                        <img src={viewingDocsBy.profilePhoto || viewingDocsBy.user?.profilePhoto} className="w-full h-full object-cover" />
+                                    <div className="relative group/avatar">
+                                        <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-xl ring-4 ring-indigo-500/20">
+                                            <img
+                                                src={editData.profilePhotoPreview || viewingDocsBy.profilePhoto || viewingDocsBy.user?.profilePhoto || 'https://images.unsplash.com/photo-1633332755192-727a05c4013d'}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                        {isEditingProfile && (
+                                            <label className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-2xl opacity-0 group-hover/avatar:opacity-100 transition-opacity cursor-pointer">
+                                                <Plus className="w-5 h-5 text-white" />
+                                                <input
+                                                    type="file"
+                                                    className="hidden"
+                                                    accept="image/*"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files[0];
+                                                        if (file) {
+                                                            setEditData({
+                                                                ...editData,
+                                                                profilePhotoFile: file,
+                                                                profilePhotoPreview: URL.createObjectURL(file)
+                                                            });
+                                                        }
+                                                    }}
+                                                />
+                                            </label>
+                                        )}
                                     </div>
                                     <div>
-                                        <h3 className="text-2xl font-black text-slate-900 dark:text-white">Partnership Verification</h3>
-                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Trust Check: {viewingDocsBy.user?.name}</p>
+                                        <h3 className="text-2xl font-black text-slate-900 dark:text-white">Expert Profile & Credentials</h3>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">ID: {viewingDocsBy.employeeId || 'N/A'} • {viewingDocsBy.user?.name}</p>
                                     </div>
                                 </div>
-                                <button onClick={() => setViewingDocsBy(null)} className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-slate-400 hover:text-red-500 transition-all"><X /></button>
+                                <div className="flex items-center gap-3">
+                                    {isEditingProfile ? (
+                                        <button
+                                            onClick={handleSaveProfile}
+                                            disabled={actionLoading.saveProfile}
+                                            className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-emerald-700 transition-all"
+                                        >
+                                            {actionLoading.saveProfile ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                            Save Changes
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => {
+                                                setIsEditingProfile(true);
+                                                setEditData({
+                                                    bio: viewingDocsBy.bio || '',
+                                                    skills: (viewingDocsBy.skills || []).join(', '),
+                                                    employeeId: viewingDocsBy.employeeId || '',
+                                                    name: viewingDocsBy.user?.name || '',
+                                                    phone: viewingDocsBy.user?.phone || '',
+                                                    address: viewingDocsBy.location?.address || '',
+                                                    categories: viewingDocsBy.categories?.map(c => c._id || c.id) || []
+                                                });
+                                            }}
+                                            className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-indigo-700 transition-all"
+                                        >
+                                            Edit Details
+                                        </button>
+                                    )}
+                                    <button onClick={() => { setViewingDocsBy(null); setIsEditingProfile(false); }} className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm text-slate-400 hover:text-red-500 transition-all"><X /></button>
+                                </div>
                             </div>
 
-                            <div className="p-10 space-y-8">
+                            <div className="p-10 space-y-10">
+                                {/* Core Identity Section */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50 dark:bg-slate-800/20 p-8 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                                    <div className="space-y-4">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Full Name</p>
+                                            {isEditingProfile ? (
+                                                <input
+                                                    type="text"
+                                                    value={editData.name}
+                                                    onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+                                                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-2 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                />
+                                            ) : (
+                                                <p className="text-sm font-black text-slate-900 dark:text-white capitalize">{viewingDocsBy.user?.name}</p>
+                                            )}
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Mobile Number</p>
+                                            {isEditingProfile ? (
+                                                <input
+                                                    type="tel"
+                                                    value={editData.phone}
+                                                    onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                                                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-2 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                />
+                                            ) : (
+                                                <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{viewingDocsBy.user?.phone || 'Not Provided'}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Company / Employee ID</p>
+                                            {isEditingProfile ? (
+                                                <input
+                                                    type="text"
+                                                    value={editData.employeeId}
+                                                    onChange={(e) => setEditData({ ...editData, employeeId: e.target.value })}
+                                                    placeholder="RES-XXX"
+                                                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-2 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                />
+                                            ) : (
+                                                <p className="text-sm font-black text-indigo-600 dark:text-indigo-400">{viewingDocsBy.employeeId || 'NOT ASSIGNED'}</p>
+                                            )}
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Primary Address</p>
+                                            {isEditingProfile ? (
+                                                <input
+                                                    type="text"
+                                                    value={editData.address}
+                                                    onChange={(e) => setEditData({ ...editData, address: e.target.value })}
+                                                    placeholder="123 Street, City"
+                                                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-2 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                />
+                                            ) : (
+                                                <p className="text-sm font-medium text-slate-600 dark:text-slate-400 leading-tight">
+                                                    {viewingDocsBy.location?.address || 'Profile incomplete'}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* Bio & Skills Section */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                    <div className="md:col-span-2 space-y-2">
+                                    <div className="md:col-span-2 space-y-3">
                                         <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Professional Summary</p>
-                                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300 leading-relaxed">
-                                            {viewingDocsBy.bio || "No summary provided."}
-                                        </p>
+                                        {isEditingProfile ? (
+                                            <textarea
+                                                value={editData.bio}
+                                                onChange={(e) => setEditData({ ...editData, bio: e.target.value })}
+                                                className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-4 rounded-2xl text-sm font-medium outline-none focus:ring-4 focus:ring-indigo-500/10 h-32"
+                                            />
+                                        ) : (
+                                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300 leading-relaxed italic">
+                                                "{viewingDocsBy.bio || "No summary provided. Partner should update their profile."}"
+                                            </p>
+                                        )}
                                     </div>
-                                    <div className="space-y-2">
-                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Self-Reported Skills</p>
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {viewingDocsBy.skills && viewingDocsBy.skills.length > 0 ? (
-                                                viewingDocsBy.skills.map((skill, idx) => (
-                                                    <span key={idx} className="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-md text-[10px] font-bold">
-                                                        {skill}
+                                    <div className="space-y-3">
+                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Technical Skills</p>
+                                        {isEditingProfile ? (
+                                            <input
+                                                type="text"
+                                                placeholder="Plumbing, Electrical..."
+                                                value={editData.skills}
+                                                onChange={(e) => setEditData({ ...editData, skills: e.target.value })}
+                                                className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-xs font-bold outline-none focus:ring-4 focus:ring-indigo-500/10"
+                                            />
+                                        ) : (
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {viewingDocsBy.skills && viewingDocsBy.skills.length > 0 ? (
+                                                    viewingDocsBy.skills.map((skill, idx) => (
+                                                        <span key={idx} className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                                                            {skill}
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <span className="text-xs text-slate-400 italic">No skills listed</span>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Categories Section */}
+                                <div className="p-8 bg-indigo-50/30 dark:bg-indigo-500/5 rounded-[2rem] border border-indigo-100 dark:border-indigo-500/10">
+                                    <p className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-4">Managed Expertise Categories</p>
+                                    {isEditingProfile ? (
+                                        <div className="flex flex-wrap gap-2">
+                                            {categories?.map(cat => (
+                                                <button
+                                                    key={cat._id}
+                                                    onClick={() => {
+                                                        const current = editData.categories || [];
+                                                        if (current.includes(cat._id)) {
+                                                            setEditData({ ...editData, categories: current.filter(id => id !== cat._id) });
+                                                        } else {
+                                                            setEditData({ ...editData, categories: [...current, cat._id] });
+                                                        }
+                                                    }}
+                                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${editData.categories?.includes(cat._id)
+                                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-200 dark:shadow-none'
+                                                            : 'bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800 hover:border-indigo-400'
+                                                        }`}
+                                                >
+                                                    {cat.name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-wrap gap-2">
+                                            {viewingDocsBy.categories?.length > 0 ? (
+                                                viewingDocsBy.categories.map(cat => (
+                                                    <span key={cat._id} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-200 dark:shadow-none">
+                                                        {cat.name}
                                                     </span>
                                                 ))
                                             ) : (
-                                                <span className="text-xs text-slate-400 italic">No skills listed</span>
+                                                <span className="text-slate-400 italic font-bold">No official categories assigned. Expert currently relies on skills fallback.</span>
                                             )}
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-8">
-                                    <div className="space-y-4">
-                                        <div className="flex justify-between items-end">
-                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Aadhar Card / Identity</p>
-                                            <a href={viewingDocsBy.documents?.aadharCard} target="_blank" className="text-indigo-500 hover:underline flex items-center gap-1 text-[9px] font-black uppercase"><ExternalLink className="w-3 h-3" /> External View</a>
+                                {/* Documents Section */}
+                                <div className="space-y-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+                                    <p className="text-[10px] font-black uppercase text-slate-900 dark:text-white tracking-[0.2em]">Verification Documents</p>
+                                    <div className="grid grid-cols-2 gap-8">
+                                        <div className="space-y-4">
+                                            <div className="flex justify-between items-end">
+                                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Aadhar Card</p>
+                                                {viewingDocsBy.documents?.aadharCard && (
+                                                    <a href={viewingDocsBy.documents?.aadharCard} target="_blank" className="text-indigo-500 hover:underline flex items-center gap-1 text-[9px] font-black uppercase"><ExternalLink className="w-3 h-3" /> View</a>
+                                                )}
+                                            </div>
+                                            <div className="aspect-video rounded-3xl overflow-hidden bg-slate-100 dark:bg-slate-950/50 border-2 border-slate-100 dark:border-slate-800 relative group">
+                                                {viewingDocsBy.documents?.aadharCard ? (
+                                                    <img src={viewingDocsBy.documents.aadharCard} className="w-full h-full object-contain" />
+                                                ) : (
+                                                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 gap-2"><ImageIcon className="w-10 h-10" /><span className="text-[10px] font-black uppercase italic">Missing Doc</span></div>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="aspect-video rounded-3xl overflow-hidden bg-slate-100 dark:bg-slate-950/50 border-2 border-slate-100 dark:border-slate-800 relative group">
-                                            {viewingDocsBy.documents?.aadharCard ? (
-                                                <img src={viewingDocsBy.documents.aadharCard} className="w-full h-full object-contain" />
-                                            ) : (
-                                                <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 gap-2"><ImageIcon className="w-10 h-10" /><span className="text-[10px] font-black uppercase italic">Missing Doc</span></div>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div className="flex justify-between items-end">
-                                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">PAN Card / Tax ID</p>
-                                            <a href={viewingDocsBy.documents?.panCard} target="_blank" className="text-indigo-500 hover:underline flex items-center gap-1 text-[9px] font-black uppercase"><ExternalLink className="w-3 h-3" /> External View</a>
-                                        </div>
-                                        <div className="aspect-video rounded-3xl overflow-hidden bg-slate-100 dark:bg-slate-950/50 border-2 border-slate-100 dark:border-slate-800 relative group">
-                                            {viewingDocsBy.documents?.panCard ? (
-                                                <img src={viewingDocsBy.documents.panCard} className="w-full h-full object-contain" />
-                                            ) : (
-                                                <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 gap-2"><ImageIcon className="w-10 h-10" /><span className="text-[10px] font-black uppercase italic">Missing Doc</span></div>
-                                            )}
+                                        <div className="space-y-4">
+                                            <div className="flex justify-between items-end">
+                                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">PAN Card</p>
+                                                {viewingDocsBy.documents?.panCard && (
+                                                    <a href={viewingDocsBy.documents?.panCard} target="_blank" className="text-indigo-500 hover:underline flex items-center gap-1 text-[9px] font-black uppercase"><ExternalLink className="w-3 h-3" /> View</a>
+                                                )}
+                                            </div>
+                                            <div className="aspect-video rounded-3xl overflow-hidden bg-slate-100 dark:bg-slate-950/50 border-2 border-slate-100 dark:border-slate-800 relative group">
+                                                {viewingDocsBy.documents?.panCard ? (
+                                                    <img src={viewingDocsBy.documents.panCard} className="w-full h-full object-contain" />
+                                                ) : (
+                                                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 gap-2"><ImageIcon className="w-10 h-10" /><span className="text-[10px] font-black uppercase italic">Missing Doc</span></div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Category Assignment Section */}
+                            {/* Category Assignment Section (Only for Pending) */}
                             {viewingDocsBy.documents?.verificationStatus === 'PENDING' && (
                                 <div className="px-10 pb-4">
-                                    <p className="text-xs font-black uppercase text-slate-900 dark:text-white mb-4">Assign Skills / Categories</p>
+                                    <p className="text-xs font-black uppercase text-slate-900 dark:text-white mb-4">Assign Operational Categories</p>
                                     <div className="flex flex-wrap gap-2">
                                         {categories.map(cat => (
                                             <button
@@ -497,11 +721,6 @@ const AdminTechnicians = () => {
                                             </button>
                                         ))}
                                     </div>
-                                    {approvalCategories.length === 0 && (
-                                        <p className="text-[10px] text-red-500 mt-2 font-bold flex items-center gap-1">
-                                            <AlertCircle className="w-3 h-3" /> Please select at least one skill to approve.
-                                        </p>
-                                    )}
                                 </div>
                             )}
 
@@ -511,24 +730,24 @@ const AdminTechnicians = () => {
                                         <button
                                             disabled={actionLoading[viewingDocsBy._id || viewingDocsBy.id] || approvalCategories.length === 0}
                                             onClick={() => handleApprove(viewingDocsBy._id || viewingDocsBy.id)}
-                                            className="flex-1 py-5 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl shadow-indigo-600/30 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:active:scale-100"
+                                            className="flex-1 py-5 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl shadow-indigo-600/30 hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
                                         >
                                             {actionLoading[viewingDocsBy._id || viewingDocsBy.id] ? <Loader className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-                                            Onboard Expert
+                                            Authorize & Onboard
                                         </button>
                                         <button
                                             onClick={() => handleReject(viewingDocsBy._id || viewingDocsBy.id)}
-                                            className="px-10 py-5 bg-white dark:bg-slate-800 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-red-50 transition-all hover:bg-red-50 hover:border-red-100 active:scale-95"
+                                            className="px-10 py-5 bg-white dark:bg-slate-800 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-red-50 transition-all hover:bg-red-50"
                                         >
                                             Reject
                                         </button>
                                     </>
                                 ) : (
                                     <button
-                                        onClick={() => setViewingDocsBy(null)}
+                                        onClick={() => { setViewingDocsBy(null); setIsEditingProfile(false); }}
                                         className="w-full py-5 bg-white dark:bg-slate-800 text-slate-400 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 transition-all"
                                     >
-                                        Close Review
+                                        Close Management
                                     </button>
                                 )}
                             </div>

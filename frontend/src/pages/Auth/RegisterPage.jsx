@@ -169,7 +169,7 @@ const RegisterPage = () => {
     return (
         <div ref={containerRef} className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
             {/* Left: Form */}
-            <div ref={formRef} className="flex flex-col justify-center px-8 sm:px-12 lg:px-20 bg-white order-last lg:order-first">
+            <div ref={formRef} className="flex flex-col justify-center px-8 sm:px-12 lg:px-20 bg-white dark:bg-slate-950 order-last lg:order-first">
                 <div className="w-full max-w-md mx-auto py-6">
                     <div className="mb-6 stagger-item">
                         <Link to="/" className="flex items-center gap-2 mb-4">
@@ -178,7 +178,7 @@ const RegisterPage = () => {
                             </div>
                             <span className="text-xl font-bold text-blue-600">Reservice</span>
                         </Link>
-                        <h1 className="text-2xl font-extrabold text-slate-900 mb-1">Create an account</h1>
+                        <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-1">Create an account</h1>
                         <p className="text-slate-500 text-sm">Join thousands of happy homeowners today.</p>
                         {successMessage && (
                             <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-xl text-green-600 text-sm font-bold flex items-center gap-2 animate-pulse">
@@ -229,9 +229,9 @@ const RegisterPage = () => {
 
                         {/* Role Selector */}
                         <div className="mb-2">
-                            <label className="block text-xs font-bold text-slate-700 mb-1">I am a</label>
+                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">I am a</label>
                             <div className="flex gap-3">
-                                <label className={`flex-1 border rounded-lg p-2 cursor-pointer transition-colors ${role === 'USER' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 hover:border-blue-300'}`}>
+                                <label className={`flex-1 border rounded-lg p-2 cursor-pointer transition-colors ${role === 'USER' ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700'}`}>
                                     <div className="flex items-center gap-2 font-bold text-xs">
                                         <input
                                             type="radio"
@@ -244,7 +244,7 @@ const RegisterPage = () => {
                                         Customer
                                     </div>
                                 </label>
-                                <label className={`flex-1 border rounded-lg p-2 cursor-pointer transition-colors ${role === 'TECHNICIAN' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 hover:border-blue-300'}`}>
+                                <label className={`flex-1 border rounded-lg p-2 cursor-pointer transition-colors ${role === 'TECHNICIAN' ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700'}`}>
                                     <div className="flex items-center gap-2 font-bold text-xs">
                                         <input
                                             type="radio"
@@ -323,10 +323,10 @@ const RegisterPage = () => {
                             <>
                                 <div className="relative py-2">
                                     <div className="absolute inset-0 flex items-center">
-                                        <span className="w-full border-t border-slate-200" />
+                                        <span className="w-full border-t border-slate-200 dark:border-slate-800" />
                                     </div>
                                     <div className="relative flex justify-center text-sm">
-                                        <span className="bg-white px-2 text-slate-500">Or register with</span>
+                                        <span className="bg-white dark:bg-slate-950 px-2 text-slate-500">Or register with</span>
                                     </div>
                                 </div>
 
@@ -334,7 +334,7 @@ const RegisterPage = () => {
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        className="w-full relative flex items-center justify-center gap-2 border-slate-200 hover:bg-slate-50 text-slate-600"
+                                        className="w-full relative flex items-center justify-center gap-2 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-600 dark:text-slate-300"
                                         onClick={handleGoogleLogin}
                                     >
                                         <svg className="w-5 h-5" viewBox="0 0 24 24">

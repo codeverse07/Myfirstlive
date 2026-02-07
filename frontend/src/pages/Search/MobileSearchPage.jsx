@@ -104,7 +104,9 @@ const MobileSearchPage = () => {
         ? activeServices.slice(0, 5)
         : activeServices.filter((service) =>
             service.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            service.category?.toLowerCase().includes(searchQuery.toLowerCase())
+            (typeof service.category === 'string'
+                ? service.category.toLowerCase().includes(searchQuery.toLowerCase())
+                : service.category?.name?.toLowerCase().includes(searchQuery.toLowerCase()))
         );
 
     return (

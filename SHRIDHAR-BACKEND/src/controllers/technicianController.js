@@ -63,6 +63,9 @@ exports.updateProfile = async (req, res, next) => {
             }
         }
 
+        // Prevent technicians from editing their own categories
+        delete req.body.categories;
+
         const profile = await TechnicianProfile.findOneAndUpdate(
             { user: req.user.id },
             req.body,

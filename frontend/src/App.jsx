@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BookingProvider } from './context/BookingContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { UserProvider } from './context/UserContext';
+import { SocketProvider } from './context/SocketContext';
 import { SoundProvider } from './context/SoundContext';
 import { AdminProvider } from './context/AdminContext';
 import { TechnicianProvider } from './context/TechnicianContext';
@@ -162,20 +163,22 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <UserProvider>
-        <BookingProvider>
-          <AdminProvider>
-            <TechnicianProvider>
-              <ThemeProvider>
-                <SoundProvider>
-                  <Router>
-                    <AnimatedRoutes />
-                    <Toaster position="top-center" />
-                  </Router>
-                </SoundProvider>
-              </ThemeProvider>
-            </TechnicianProvider>
-          </AdminProvider>
-        </BookingProvider>
+        <SocketProvider>
+          <BookingProvider>
+            <AdminProvider>
+              <TechnicianProvider>
+                <ThemeProvider>
+                  <SoundProvider>
+                    <Router>
+                      <AnimatedRoutes />
+                      <Toaster position="top-center" />
+                    </Router>
+                  </SoundProvider>
+                </ThemeProvider>
+              </TechnicianProvider>
+            </AdminProvider>
+          </BookingProvider>
+        </SocketProvider>
       </UserProvider>
     </QueryClientProvider>
   );

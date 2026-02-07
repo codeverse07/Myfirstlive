@@ -39,16 +39,20 @@ exports.getAllCategories = async (req, res, next) => {
 exports.createCategory = async (req, res, next) => {
     try {
         console.log('[DEBUG] createCategory Request Body:', req.body);
-        console.log('[DEBUG] createCategory Request File:', req.file);
+
+        let image = 'https://images.unsplash.com/photo-1581578731548-c64695cc6958'; // Default
 
         if (req.file) {
-            req.body.image = req.file.path;
-        } else if (!req.body.image) {
-            delete req.body.image; // Allow default if empty
+            image = req.file.path;
+        } else if (req.body.image) {
+            image = req.body.image;
         }
 
-        console.log('[DEBUG] Creating Category with data:', req.body);
-        const newCategory = await Category.create(req.body);
+        const newCategory = await Category.create({
+            ...req.body,
+            image
+        });
+
         console.log('[DEBUG] Category Created:', newCategory);
 
         res.status(201).json({
@@ -59,16 +63,7 @@ exports.createCategory = async (req, res, next) => {
         });
     } catch (err) {
         console.error('[DEBUG] createCategory Error:', err);
-        // Fallback if next is somehow undefined (should typically not happen in standard Express)
-        if (typeof next === 'function') {
-            return next(err);
-        } else {
-            return res.status(500).json({
-                status: 'error',
-                message: 'Internal Server Error (next undefined)',
-                error: err.message
-            });
-        }
+        next(err);
     }
 };
 

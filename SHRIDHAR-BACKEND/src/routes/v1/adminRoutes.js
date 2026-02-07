@@ -19,6 +19,7 @@ router.get('/technicians', adminController.getAllTechnicians);
 router.post('/technicians', adminController.createTechnician);
 router.patch('/technicians/:id/approve', adminController.approveTechnician);
 router.patch('/technicians/:id/reject', adminController.rejectTechnician);
+router.patch('/technicians/:id/profile', require('../../middlewares/upload').single('profilePhoto'), adminController.updateTechnicianProfile);
 router.delete('/technicians/:id', adminController.deleteTechnician);
 
 

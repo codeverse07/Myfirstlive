@@ -608,6 +608,21 @@ const TechnicianDashboard = () => {
                                                 )}
                                             </div>
                                         </div>
+
+                                        <div className="space-y-4">
+                                            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Assigned Expertise</p>
+                                            <div className="flex flex-wrap gap-2 pt-2">
+                                                {technicianProfile?.categories && technicianProfile.categories.length > 0 ? (
+                                                    technicianProfile.categories.map((cat, index) => (
+                                                        <span key={cat._id || index} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-200 dark:shadow-none">
+                                                            {cat.name || 'Category'}
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <span className="text-slate-400 italic font-[10px] uppercase tracking-widest">No official categories assigned yet</span>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div className="pt-10 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">

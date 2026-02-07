@@ -3,7 +3,7 @@ import { useAdmin } from '../../context/AdminContext';
 import {
     Clock, Tag, User, Users, ExternalLink, X, Info, Edit3,
     Image as ImageIcon, Star, Layout, AlertCircle, Loader,
-    CheckCircle2, MessageSquarePlus, Zap, UserCheck
+    CheckCircle2, MessageSquarePlus, Zap, UserCheck, RotateCcw, UserMinus, RefreshCw
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -12,6 +12,9 @@ const AdminBookings = () => {
     const { allBookings, technicians, assignTechnician, cancelBooking, updateBookingStatus, isLoading } = useAdmin();
     const [selectedTechs, setSelectedTechs] = useState({}); // { bookingId: techId }
     const [actionLoading, setActionLoading] = useState({});
+    const [reassigningId, setReassigningId] = useState(null);
+    const [pinInputs, setPinInputs] = useState({}); // { bookingId: pin }
+    const [showPinInput, setShowPinInput] = useState(null); // bookingId
     const [activeTab, setActiveTab] = useState('active'); // 'active' or 'history'
     const [selectedBooking, setSelectedBooking] = useState(null);
 
@@ -61,11 +64,29 @@ const AdminBookings = () => {
 
         return technicians.filter(t => {
             if (t.documents?.verificationStatus !== 'VERIFIED') return false;
-            // Check by Category ID
-            if (t.categories?.some(catId => String(catId) === String(bookingCatId))) return true;
-            // Fallback: Check by Skills string
-            if (t.skills?.some(skill => skill.toLowerCase().includes(bookingCatName))) return true;
+            if (t.user?.isActive === false) return false; // Exclude blocked users
+
+            // 1. Strict Category ID Match
+            // Handle both populated object and ID string
+            const hasCategory = t.categories?.some(cat => {
+                const cId = cat._id || cat.id || cat; // Handle object or string
+                return cId && String(cId) === String(bookingCatId);
+            });
+
+            if (hasCategory) return true;
+
+            // 2. Fallback: Check by Skills string ONLY if technician has NO assigned categories
+            // This ensures that once categories are set by an admin, they are strictly followed.
+            if ((!t.categories || t.categories.length === 0) && bookingCatName) {
+                if (t.skills?.some(skill => skill.toLowerCase().includes(bookingCatName))) return true;
+            }
+
             return false;
+        }).sort((a, b) => {
+            // Sort Online first
+            if (a.isOnline && !b.isOnline) return -1;
+            if (!a.isOnline && b.isOnline) return 1;
+            return 0;
         });
     };
 
@@ -190,46 +211,98 @@ const AdminBookings = () => {
                                                         <p className="text-[10px] text-slate-400">{booking.customer?.phone || booking.customer?.email}</p>
                                                     </td>
                                                     <td className="px-6 py-5">
-                                                        {booking.technician ? (
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
-                                                                    <UserCheck className="w-3 h-3 text-indigo-600" />
+                                                        {booking.technician && reassigningId !== booking._id ? (
+                                                            <div className="flex items-center justify-between gap-2 group/tech flex-1">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                                                                        <UserCheck className="w-3 h-3 text-indigo-600" />
+                                                                    </div>
+                                                                    <p className="font-bold text-slate-700 dark:text-slate-300 text-sm">
+                                                                        {booking.technician.name}
+                                                                    </p>
                                                                 </div>
-                                                                <p className="font-bold text-slate-700 dark:text-slate-300 text-sm">
-                                                                    {booking.technician.name}
-                                                                </p>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="flex items-center gap-2">
-                                                                <select
-                                                                    className="text-[10px] font-black p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none flex-1"
-                                                                    value={selectedTechs[booking._id] || ""}
-                                                                    onChange={(e) => setSelectedTechs(prev => ({ ...prev, [booking._id]: e.target.value }))}
-                                                                    disabled={actionLoading[booking._id]}
-                                                                >
-                                                                    <option value="">Assign Expert</option>
-                                                                    {getFilteredTechnicians(booking).map(t => (
-                                                                        <option key={t._id} value={t.user?._id || t.user}>{t.name || t.user?.name}</option>
-                                                                    ))}
-                                                                    <option disabled>──────────</option>
-                                                                    {technicians.filter(t => t.documents?.verificationStatus === 'VERIFIED').map(t => (
-                                                                        <option key={t._id} value={t.user?._id || t.user}>{t.name || t.user?.name}</option>
-                                                                    ))}
-                                                                </select>
-                                                                {selectedTechs[booking._id] && (
-                                                                    <button
-                                                                        onClick={() => handleAssign(booking._id)}
-                                                                        disabled={actionLoading[booking._id]}
-                                                                        className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 dark:shadow-none"
-                                                                    >
-                                                                        {actionLoading[booking._id] ? (
-                                                                            <Loader className="w-3 h-3 animate-spin" />
-                                                                        ) : (
-                                                                            <CheckCircle2 className="w-3.5 h-3.5" />
-                                                                        )}
-                                                                    </button>
+                                                                {['PENDING', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS'].includes(booking.status) && (
+                                                                    <div className="flex items-center gap-1 transition-opacity">
+                                                                        <button
+                                                                            onClick={() => setReassigningId(booking._id)}
+                                                                            title="Reassign Expert"
+                                                                            className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-indigo-600 rounded-lg transition-colors"
+                                                                        >
+                                                                            <RefreshCw className="w-3 h-3" />
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={async () => {
+                                                                                if (window.confirm("Are you sure you want to unassign this expert?")) {
+                                                                                    setActionLoading(prev => ({ ...prev, [booking._id]: true }));
+                                                                                    try {
+                                                                                        await assignTechnician(booking._id, null);
+                                                                                        toast.success("Expert unassigned successfully");
+                                                                                    } finally {
+                                                                                        setActionLoading(prev => ({ ...prev, [booking._id]: false }));
+                                                                                    }
+                                                                                }
+                                                                            }}
+                                                                            title="Unassign Expert"
+                                                                            className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-rose-600 rounded-lg transition-colors"
+                                                                        >
+                                                                            <UserMinus className="w-3 h-3" />
+                                                                        </button>
+                                                                    </div>
                                                                 )}
                                                             </div>
+                                                        ) : (
+                                                            ['CANCELLED', 'COMPLETED', 'REJECTED'].includes(booking.status) ? (
+                                                                <div className="flex items-center gap-2 opacity-40">
+                                                                    <div className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                                                                        <UserMinus className="w-3 h-3 text-slate-400" />
+                                                                    </div>
+                                                                    <p className="font-bold text-slate-400 text-[10px] uppercase tracking-widest italic">
+                                                                        Assignment Closed
+                                                                    </p>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex items-center gap-2">
+                                                                    <select
+                                                                        className="text-[10px] font-black p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none flex-1"
+                                                                        value={selectedTechs[booking._id] || ""}
+                                                                        onChange={(e) => setSelectedTechs(prev => ({ ...prev, [booking._id]: e.target.value }))}
+                                                                        disabled={actionLoading[booking._id]}
+                                                                    >
+                                                                        <option value="">{reassigningId === booking._id ? "Reassign Expert" : "Assign Expert"}</option>
+                                                                        {getFilteredTechnicians(booking).map(t => (
+                                                                            <option key={t._id} value={t.user?._id || t.user}>
+                                                                                {t.name || t.user?.name} {t.isOnline ? '🟢' : ''}
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+                                                                    <div className="flex items-center gap-1">
+                                                                        {selectedTechs[booking._id] && (
+                                                                            <button
+                                                                                onClick={async () => {
+                                                                                    await handleAssign(booking._id);
+                                                                                    setReassigningId(null);
+                                                                                }}
+                                                                                disabled={actionLoading[booking._id]}
+                                                                                className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 dark:shadow-none"
+                                                                            >
+                                                                                {actionLoading[booking._id] ? (
+                                                                                    <Loader className="w-3 h-3 animate-spin" />
+                                                                                ) : (
+                                                                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                                                                )}
+                                                                            </button>
+                                                                        )}
+                                                                        {reassigningId === booking._id && (
+                                                                            <button
+                                                                                onClick={() => setReassigningId(null)}
+                                                                                className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-400 rounded-lg hover:text-rose-500 transition-colors"
+                                                                            >
+                                                                                <X className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            )
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-5">
@@ -256,19 +329,68 @@ const AdminBookings = () => {
                                                             >
                                                                 <ExternalLink className="w-4 h-4" />
                                                             </button>
-                                                            {/* Mark as Completed (Admin Bypass) */}
+
+                                                            {/* Mark as Completed (Admin Completion with PIN) */}
                                                             {['IN_PROGRESS', 'ACCEPTED'].includes(booking.status) && (
-                                                                <button
-                                                                    onClick={async () => {
-                                                                        if (window.confirm('Force mark this booking as COMPLETED? This bypasses the Happy Pin check.')) {
-                                                                            await updateBookingStatus(booking._id, 'COMPLETED');
-                                                                        }
-                                                                    }}
-                                                                    className="p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-lg transition-all"
-                                                                    title="Force Complete"
-                                                                >
-                                                                    <CheckCircle2 className="w-4 h-4" />
-                                                                </button>
+                                                                <div className="relative flex items-center gap-1">
+                                                                    {showPinInput === booking._id ? (
+                                                                        <div className="absolute right-0 top-0 mt-[-40px] flex items-center gap-2 bg-white dark:bg-slate-800 p-2 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 z-50 animate-in fade-in slide-in-from-bottom-2">
+                                                                            <input
+                                                                                type="text"
+                                                                                placeholder="Happy Pin"
+                                                                                maxLength={6}
+                                                                                className="w-24 p-2 text-[10px] font-black border border-slate-200 dark:border-slate-700 rounded-lg outline-none bg-slate-50 dark:bg-slate-900"
+                                                                                value={pinInputs[booking._id] || ''}
+                                                                                onChange={(e) => setPinInputs({ ...pinInputs, [booking._id]: e.target.value })}
+                                                                            />
+                                                                            <button
+                                                                                onClick={async () => {
+                                                                                    if (!pinInputs[booking._id]) return toast.error("Enter Happy Pin");
+                                                                                    setActionLoading(prev => ({ ...prev, [booking._id]: true }));
+                                                                                    try {
+                                                                                        const res = await updateBookingStatus(booking._id, 'COMPLETED', { securityPin: pinInputs[booking._id] });
+                                                                                        if (res.success) {
+                                                                                            setShowPinInput(null);
+                                                                                            toast.success("Job marked as completed successfully");
+                                                                                        }
+                                                                                    } finally {
+                                                                                        setActionLoading(prev => ({ ...prev, [booking._id]: false }));
+                                                                                    }
+                                                                                }}
+                                                                                className="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                                                                            >
+                                                                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => setShowPinInput(null)}
+                                                                                className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-400 rounded-lg hover:text-rose-500"
+                                                                            >
+                                                                                <X className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <button
+                                                                            onClick={() => setShowPinInput(booking._id)}
+                                                                            className="p-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition-all"
+                                                                            title="Verify & Complete (with Happy Pin)"
+                                                                        >
+                                                                            <Zap className="w-4 h-4" />
+                                                                        </button>
+                                                                    )}
+
+                                                                    {/* Mark as Completed (Admin Bypass) - Keep as fallback but smaller */}
+                                                                    <button
+                                                                        onClick={async () => {
+                                                                            if (window.confirm('Force mark this booking as COMPLETED? This bypasses the Happy Pin check.')) {
+                                                                                await updateBookingStatus(booking._id, 'COMPLETED');
+                                                                            }
+                                                                        }}
+                                                                        className="p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-lg transition-all opacity-40 hover:opacity-100"
+                                                                        title="Force Complete (Bypass Pin)"
+                                                                    >
+                                                                        <CheckCircle2 className="w-4 h-4" />
+                                                                    </button>
+                                                                </div>
                                                             )}
                                                             {['PENDING', 'ASSIGNED', 'ACCEPTED'].includes(booking.status) && (
                                                                 <button
@@ -336,14 +458,54 @@ const AdminBookings = () => {
 
                             {/* Modal Content */}
                             <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
-                                    <div className="space-y-1">
-                                        <DetailRow label="Client" value={selectedBooking.customer?.name} icon={User} />
-                                        <DetailRow label="Address" value={selectedBooking.location?.address} icon={Info} />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    {/* Client Profile */}
+                                    <div className="p-6 bg-slate-50 dark:bg-slate-800/40 rounded-[2rem] border border-slate-100 dark:border-slate-800 space-y-4">
+                                        <div className="flex items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+                                            <img
+                                                src={selectedBooking.customer?.profilePhoto?.startsWith('http') ? selectedBooking.customer.profilePhoto : `/uploads/users/${selectedBooking.customer?.profilePhoto || 'default.jpg'}`}
+                                                className="w-12 h-12 rounded-2xl object-cover"
+                                                alt="Client"
+                                            />
+                                            <div>
+                                                <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Client Profile</p>
+                                                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase">{selectedBooking.customer?.name || 'Guest User'}</h3>
+                                            </div>
+                                        </div>
+                                        <DetailRow label="Mobile" value={selectedBooking.customer?.phone || 'Not Shared'} icon={Users} />
+                                        <DetailRow label="Booking Address" value={selectedBooking.location?.address} icon={Info} />
+                                        <DetailRow label="Requested At" value={new Date(selectedBooking.scheduledAt).toLocaleString()} icon={Clock} />
                                     </div>
-                                    <div className="space-y-1">
-                                        <DetailRow label="Expert" value={selectedBooking.technician?.name || 'Awaiting Selection'} icon={Users} />
-                                        <DetailRow label="Timing" value={new Date(selectedBooking.scheduledAt).toLocaleString()} icon={Clock} />
+
+                                    {/* Expert Profile */}
+                                    <div className="p-6 bg-slate-50 dark:bg-slate-800/40 rounded-[2rem] border border-slate-100 dark:border-slate-800 space-y-4">
+                                        <div className="flex items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+                                            <div className="relative">
+                                                <img
+                                                    src={selectedBooking.technician?.profilePhoto?.startsWith('http') ? selectedBooking.technician.profilePhoto : `/uploads/users/${selectedBooking.technician?.profilePhoto || 'default.jpg'}`}
+                                                    className="w-12 h-12 rounded-2xl object-cover"
+                                                    alt="Expert"
+                                                    onError={(e) => { e.target.src = 'https://ui-avatars.com/api/?name=Technician&background=random'; }}
+                                                />
+                                                {selectedBooking.technician && (
+                                                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full" />
+                                                )}
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Assigned Expert</p>
+                                                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase">{selectedBooking.technician?.name || 'Unassigned'}</h3>
+                                            </div>
+                                        </div>
+                                        {selectedBooking.technician ? (
+                                            <>
+                                                <DetailRow label="Mobile" value={selectedBooking.technician?.phone} icon={Users} />
+                                                <DetailRow label="Home Address" value={selectedBooking.technician?.technicianProfile?.location?.address || 'Not Provided'} icon={Info} />
+                                            </>
+                                        ) : (
+                                            <div className="py-4 text-center">
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase italic">Waiting for Expert Assignment</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -424,7 +586,7 @@ const AdminBookings = () => {
                     </div>
                 )}
             </AnimatePresence>
-        </div>
+        </div >
     );
 };
 

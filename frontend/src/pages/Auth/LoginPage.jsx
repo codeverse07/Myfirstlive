@@ -202,7 +202,7 @@ const LoginPage = () => {
     return (
         <div ref={containerRef} className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
             {/* Left: Form */}
-            <div ref={formRef} className="flex flex-col justify-center px-8 sm:px-12 lg:px-20 bg-white order-last lg:order-first">
+            <div ref={formRef} className="flex flex-col justify-center px-8 sm:px-12 lg:px-20 bg-white dark:bg-slate-950 order-last lg:order-first">
                 <div className="w-full max-w-md mx-auto py-6">
                     <div className="mb-6 stagger-item">
                         <Link to="/" className="flex items-center gap-2 mb-4">
@@ -211,7 +211,7 @@ const LoginPage = () => {
                             </div>
                             <span className="text-xl font-bold text-blue-600">Reservice</span>
                         </Link>
-                        <h1 className="text-2xl font-extrabold text-slate-900 mb-1">
+                        <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-1">
                             {isExistingCustomer ? 'Welcome Back' : 'Create your profile'}
                         </h1>
                         <p className="text-slate-500 text-sm">
@@ -220,16 +220,16 @@ const LoginPage = () => {
                     </div>
 
                     {/* Compact Mode Toggle */}
-                    <div className="flex bg-slate-100 p-1 rounded-xl mb-3 stagger-item">
+                    <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-xl mb-3 stagger-item">
                         <button
                             onClick={() => { setIsExistingCustomer(false); setRecaptchaToken(null); if (recaptchaRef.current) recaptchaRef.current.reset(); }}
-                            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${!isExistingCustomer ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${!isExistingCustomer ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
                         >
                             New Profile
                         </button>
                         <button
                             onClick={() => { setIsExistingCustomer(true); setRecaptchaToken(null); if (recaptchaRef.current) recaptchaRef.current.reset(); }}
-                            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${isExistingCustomer ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${isExistingCustomer ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
                         >
                             Existing Customer
                         </button>
@@ -263,9 +263,9 @@ const LoginPage = () => {
 
                         {!isExistingCustomer && (
                             <div className="mb-2">
-                                <label className="block text-xs font-bold text-slate-700 mb-1">I am a</label>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">I am a</label>
                                 <div className="flex gap-3">
-                                    <label className={`flex-1 border rounded-lg p-2 cursor-pointer transition-colors ${role === 'USER' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 hover:border-blue-300'}`}>
+                                    <label className={`flex-1 border rounded-lg p-2 cursor-pointer transition-colors ${role === 'USER' ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700'}`}>
                                         <div className="flex items-center gap-2 font-bold text-xs">
                                             <input
                                                 type="radio"
@@ -278,7 +278,7 @@ const LoginPage = () => {
                                             Customer
                                         </div>
                                     </label>
-                                    <label className={`flex-1 border rounded-lg p-2 cursor-pointer transition-colors ${role === 'TECHNICIAN' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 hover:border-blue-300'}`}>
+                                    <label className={`flex-1 border rounded-lg p-2 cursor-pointer transition-colors ${role === 'TECHNICIAN' ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700'}`}>
                                         <div className="flex items-center gap-2 font-bold text-xs">
                                             <input
                                                 type="radio"
@@ -365,10 +365,10 @@ const LoginPage = () => {
                             <>
                                 <div className="relative py-2">
                                     <div className="absolute inset-0 flex items-center">
-                                        <div className="w-full border-t border-slate-200"></div>
+                                        <div className="w-full border-t border-slate-200 dark:border-slate-800"></div>
                                     </div>
                                     <div className="relative flex justify-center text-[10px] uppercase">
-                                        <span className="bg-white px-2 text-slate-400">Or continue with</span>
+                                        <span className="bg-white dark:bg-slate-950 px-2 text-slate-400">Or continue with</span>
                                     </div>
                                 </div>
 
@@ -376,10 +376,10 @@ const LoginPage = () => {
                                     <button
                                         type="button"
                                         onClick={handleGoogleLogin}
-                                        className="flex items-center justify-center gap-2 py-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+                                        className="flex items-center justify-center gap-2 py-2 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
                                     >
                                         <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="Google" />
-                                        <span className="text-sm font-bold text-slate-700">Google</span>
+                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Google</span>
                                     </button>
                                 </div>
                             </>

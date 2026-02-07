@@ -103,7 +103,7 @@ const MobileHomePage = ({ services = [], categories = [] }) => {
     }, 30000); // Rotate every 30 seconds
 
     return () => clearInterval(rotationInterval);
-  }, []);
+  }, [categories]);
 
   const getVisibleCategories = () => {
     const activeCategories = categories.filter(c => c.isActive !== false);
@@ -148,18 +148,13 @@ const MobileHomePage = ({ services = [], categories = [] }) => {
 
   const handleHeroClick = (slide) => {
     if (slide.serviceId) {
-      // Find the service object if possible
-      const service = services.find(s => String(s.id || s._id) === String(slide.serviceId));
-      if (service) {
-        setSelectedService(service);
-        setIsMobileDetailOpen(true);
-      }
+      setSelectedServiceId(slide.serviceId);
     }
   };
 
-  const handleCategoryClick = (cat) => {
+  const handleCategoryClick = (categoryId) => {
     // Redirect to Services page with strict filtering
-    navigate('/services', { state: { category: cat.name || cat.id } });
+    navigate('/services', { state: { category: categoryId } });
   };
 
   // Show only 7 services on Home Page as requested
@@ -263,7 +258,7 @@ const MobileHomePage = ({ services = [], categories = [] }) => {
 
                   return (
                     <motion.div
-                      key={cat.id}
+                      key={cat._id || cat.id}
                       layout
                       className="flex flex-col items-center gap-2 cursor-pointer"
                       initial={{ opacity: 0, x: 20, scale: 0.8 }}
@@ -276,7 +271,7 @@ const MobileHomePage = ({ services = [], categories = [] }) => {
                         mass: 1,
                         delay: idx * 0.03
                       }}
-                      onClick={() => handleCategoryClick(cat.id)}
+                      onClick={() => handleCategoryClick(cat._id || cat.id)}
                       whileTap={{ scale: 0.9 }}
                     >
                       <div className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden transition-all duration-700
@@ -292,93 +287,66 @@ const MobileHomePage = ({ services = [], categories = [] }) => {
           </motion.div>
         </section>
 
-        {/* Popular Services - Now Category Based */}
+        {/* Popular Services - Restored Large Cards & Zoom Effect */}
         <section className="px-5 mt-8 pb-4">
           <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mb-5 flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-amber-400 fill-current" />
-            Top Booked Categories
+            Top Rated Services
           </h2>
 
-          <div className="flex flex-col gap-6">
-            {categories.filter(c => c.isActive !== false).map((cat, idx) => {
-              const uniqueKey = cat.id || cat._id || idx;
-
-              // Find first service in this category for data fallback
-              const relatedService = services.find(s => {
-                const sCat = s.category?.name || s.category;
-                return typeof sCat === 'string' && sCat.toLowerCase() === cat.name?.toLowerCase();
-              });
-              const price = cat.price || relatedService?.price || 0;
-              const rating = cat.rating || relatedService?.rating || 'New';
-
+          <div className="flex flex-col gap-8 min-h-75">
+            {displayedServices.map((service, idx) => {
+              const uniqueKey = service.id || service._id || idx;
               return (
                 <div
                   key={uniqueKey}
                   data-id={uniqueKey}
-                  onClick={() => setSelectedServiceId(relatedService?._id || relatedService?.id)}
-                  className={`zoom-card relative rounded-4xl ring-1 ring-transparent dark:ring-white/5 transition-all duration-300 transform rotating-border-home ${String(activeCardId) === String(uniqueKey) ? 'active scale-[1.02] shadow-2xl' : 'scale-100 shadow-md'} cursor-pointer active:scale-[0.98] mb-4`}
+                  onClick={() => setSelectedServiceId(service._id || service.id)}
+                  className={`zoom-card relative rounded-4xl ring-1 ring-transparent dark:ring-white/5 transition-all duration-300 transform rotating-border-home ${String(activeCardId) === String(service._id || service.id) ? 'active scale-[1.02] shadow-2xl' : 'scale-100 shadow-md'} cursor-pointer active:scale-[0.98] mb-8`}
                 >
                   {/* Inner Content Wrapper */}
                   <div className="rounded-4xl overflow-hidden w-full h-full relative z-10 bg-white dark:bg-slate-900 isolation-isolate">
                     {/* Image Section */}
-                    <div className="h-48 relative overflow-hidden rounded-t-4xl">
+                    <div className="h-56 relative overflow-hidden rounded-t-4xl">
                       <img
-                        src={cat.image || relatedService?.image}
-                        alt={cat.name}
-                        className={`w-full h-full object-cover transition-transform duration-1000 ease-out ${String(activeCardId) === String(uniqueKey) ? 'scale-110' : 'scale-100'}`}
+                        src={service.image}
+                        alt={service.title}
+                        className={`w-full h-full object-cover transition-transform duration-1000 ease-out ${activeCardId === service.id ? 'scale-110' : 'scale-100'}`}
                       />
                       <div className="absolute top-0 inset-x-0 h-16 bg-linear-to-b from-black/50 to-transparent"></div>
-                      <div className="absolute top-4 left-4">
+                      <div className="absolute top-5 left-5">
                         <span className="bg-white/90 dark:bg-black/80 backdrop-blur text-black dark:text-white text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-wide shadow-sm">
                           Best Seller
                         </span>
                       </div>
+                      <div className="absolute top-5 right-5 w-8 h-8 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-white">
+                        <Star className="w-4 h-4 text-amber-400 fill-current" />
+                      </div>
                     </div>
 
                     {/* Text Content */}
-                    <div className="p-4">
-                      <div className="flex justify-between items-start mb-1">
-                        <h3 className="text-lg font-extrabold text-gray-900 dark:text-white leading-tight">{cat.name}</h3>
-                        <div className="bg-green-700 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-0.5 shadow-sm">
-                          {rating} <Star className="w-2.5 h-2.5 fill-current" />
+                    <div className="p-5">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="text-xl font-extrabold text-gray-900 dark:text-white leading-tight">{service.title}</h3>
+                        <div className="bg-green-700 text-white text-xs font-bold px-2 py-0.5 rounded-lg flex items-center gap-0.5 shadow-sm">
+                          {service.rating} <Star className="w-2.5 h-2.5 fill-current" />
                         </div>
                       </div>
-                      <div className="flex items-start gap-1.5 text-[10px] font-bold text-gray-500 dark:text-slate-400 mb-3 uppercase tracking-wide">
-                        <span>Home Services</span>
-                        <span className="mx-1">•</span>
+                      <div className="flex items-start gap-1.5 text-[11px] font-bold text-gray-500 dark:text-slate-400 mb-4 uppercase tracking-wide">
+                        <Clock className="w-3.5 h-3.5" />
                         <span>45 Mins</span>
+                        <span className="mx-1">•</span>
+                        <span>Home Services</span>
                       </div>
 
-                      <div className="flex items-center justify-between border-t border-dashed border-gray-100 dark:border-slate-800 pt-3 gap-3">
+                      <div className="flex items-center justify-between border-t border-dashed border-gray-100 dark:border-slate-800 pt-4">
                         <div className="flex flex-col">
-                          {cat.originalPrice && (
-                            <span className="text-[10px] text-gray-400 dark:text-slate-500 font-bold uppercase line-through">₹{cat.originalPrice}</span>
-                          )}
-                          <span className="text-lg font-black text-gray-900 dark:text-white">₹{price}</span>
+                          <span className="text-[10px] text-gray-400 dark:text-slate-500 font-bold uppercase line-through">₹{service.price + 300}</span>
+                          <span className="text-lg font-black text-gray-900 dark:text-white">₹{service.price}</span>
                         </div>
-                        <div className="flex gap-2 flex-1 justify-end">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCategoryClick(cat);
-                            }}
-                            className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide border border-slate-100 dark:border-slate-700 active:scale-95 transition-all"
-                          >
-                            Details
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Logic for booking: if a service exists, use it, else create a dummy payload for the modal
-                              const serviceData = relatedService || { title: cat.name, price: price, category: cat.name, id: uniqueKey };
-                              // We use another state for the booking modal if needed, but here let's trigger the detail view for booking
-                              setSelectedServiceId(serviceData._id || serviceData.id);
-                            }}
-                            className="bg-rose-600 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wide active:scale-95 transition-colors shadow-lg shadow-rose-600/20"
-                          >
-                            Book Now
-                          </button>
-                        </div>
+                        <button className="bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wide hover:bg-rose-600 hover:text-white transition-colors">
+                          Book Now
+                        </button>
                       </div>
                     </div>
                   </div>

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { categories as initialCategories } from '../data/mockData';
 import { useUser } from './UserContext';
+import { useSocket } from './SocketContext';
 import client from '../api/client';
 import { toast } from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
@@ -9,6 +10,7 @@ const AdminContext = createContext();
 
 export const AdminProvider = ({ children }) => {
     const { user, isAuthenticated, login: userLogin, logout: userLogout } = useUser();
+    const { socket } = useSocket();
     const queryClient = useQueryClient();
 
     // Derive admin status directly from UserContext
@@ -31,12 +33,11 @@ export const AdminProvider = ({ children }) => {
     const [services, setServices] = useState([]);
     const [categories, setCategories] = useState([]);
     const [reasons, setReasons] = useState([]);
+    const [feedbacks, setFeedbacks] = useState([]);
+    const [reviews, setReviews] = useState([]);
     const [dashboardStats, setDashboardStats] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Feedbacks and Reviews are not fetched by the new fetchData, so their states are removed.
-
-    // Helper to transform backend service to frontend shape
     // Helper to transform backend service to frontend shape
     const transformService = (service) => {
         let categoryName = 'General';
@@ -47,11 +48,6 @@ export const AdminProvider = ({ children }) => {
             categoryName = service.category.name;
             categoryId = service.category._id || service.category.id;
         } else if (typeof service.category === 'string') {
-            // Check if it's a legacy name or an ID? 
-            // We assume it might be a name if not hex, but migration should have fixed this.
-            // For safety, if it's a string, we treat it as the name for mapping, 
-            // BUT if it's an ID, we might lose the name.
-            // However, backend populates it now. So it should be an object.
             categoryName = service.category; // Fallback
         }
 
@@ -129,13 +125,15 @@ export const AdminProvider = ({ children }) => {
 
         const endpoints = [
             { key: 'stats', url: '/admin/dashboard-stats', setter: setDashboardStats },
-            { key: 'bookings', url: '/admin/bookings', setter: setAllBookings, transform: (d) => d.data.bookings },
-            { key: 'technicians', url: '/admin/technicians', setter: setTechnicians, transform: (d) => d.data.technicians },
-            { key: 'users', url: '/admin/users', setter: setUsers, transform: (d) => d.data.users },
+            { key: 'bookings', url: '/admin/bookings?limit=1000', setter: setAllBookings, transform: (d) => d.data.bookings },
+            { key: 'technicians', url: '/admin/technicians?limit=1000', setter: setTechnicians, transform: (d) => d.data.technicians },
+            { key: 'users', url: '/admin/users?limit=1000', setter: setUsers, transform: (d) => d.data.users },
             { key: 'services', url: '/services', setter: setServices, transform: (d) => d.data.services.map(transformService) },
             { key: 'categories', url: '/categories', setter: setCategories, transform: (d) => d.data.categories },
             { key: 'reasons', url: '/reasons', setter: setReasons, transform: (d) => d.data.reasons },
             { key: 'settings', url: '/admin/settings', setter: setAppSettings, transform: (d) => d.data.settings },
+            { key: 'feedbacks', url: '/feedbacks', setter: setFeedbacks, transform: (d) => d.data.feedbacks },
+            { key: 'reviews', url: '/reviews/all', setter: setReviews, transform: (d) => d.data.reviews },
         ];
 
         try {
@@ -149,7 +147,6 @@ export const AdminProvider = ({ children }) => {
                     const data = result.value.data;
                     if (ep.key === 'categories') {
                         console.log('[DEBUG] AdminContext: Fetched Categories:', data.data?.categories?.length);
-                        // console.log('[DEBUG] Categories:', data.data?.categories);
                     }
                     if (ep.transform) {
                         ep.setter(ep.transform(data));
@@ -170,6 +167,30 @@ export const AdminProvider = ({ children }) => {
     useEffect(() => {
         fetchData();
     }, [isAdminAuthenticated]);
+
+    useEffect(() => {
+        if (!socket || !isAdminAuthenticated) return;
+
+        const handleTechOnline = ({ userId }) => {
+            setTechnicians(prev => prev.map(t =>
+                (t.user?._id === userId || t.user === userId) ? { ...t, isOnline: true } : t
+            ));
+        };
+
+        const handleTechOffline = ({ userId }) => {
+            setTechnicians(prev => prev.map(t =>
+                (t.user?._id === userId || t.user === userId) ? { ...t, isOnline: false } : t
+            ));
+        };
+
+        socket.on('technician:online', handleTechOnline);
+        socket.on('technician:offline', handleTechOffline);
+
+        return () => {
+            socket.off('technician:online', handleTechOnline);
+            socket.off('technician:offline', handleTechOffline);
+        };
+    }, [socket, isAdminAuthenticated]);
 
     useEffect(() => {
         localStorage.setItem('app_settings', JSON.stringify(appSettings));
@@ -208,11 +229,13 @@ export const AdminProvider = ({ children }) => {
             });
             console.log('[DEBUG] AdminContext: Add Category Response:', res.data);
             if (res.data.status === 'success') {
-                setCategories(prev => [...prev, res.data.data.category]);
-                queryClient.invalidateQueries({ queryKey: ['categories'] });
+                // Force refresh to get merged fields and correct order
+                await fetchData();
+                toast.success("Category launched successfully");
             }
         } catch (err) {
             console.error("Failed to add category", err.response?.data || err.message);
+            toast.error(err.response?.data?.message || "Failed to add category");
         }
     };
 
@@ -296,12 +319,40 @@ export const AdminProvider = ({ children }) => {
         try {
             const res = await client.patch(`/services/${id}`, { price: Number(newPrice) });
             if (res.data.status === 'success') {
-                setServices(prev => prev.map(s => s.id === id ? { ...s, price: Number(newPrice) } : s));
+                const updatedService = transformService(res.data.data.service);
+                setServices(prev => prev.map(s => s.id === id ? updatedService : s));
                 toast.success("Price updated");
             }
         } catch (err) {
             console.error("Failed to update service price", err);
             toast.error("Failed to update price");
+        }
+    };
+
+    const updateService = async (id, serviceData) => {
+        try {
+            let payload;
+            let headers = {};
+
+            if (serviceData instanceof FormData) {
+                payload = serviceData;
+                headers = { 'Content-Type': 'multipart/form-data' };
+            } else {
+                payload = serviceData;
+            }
+
+            const res = await client.patch(`/services/${id}`, payload, { headers });
+
+            if (res.data.status === 'success') {
+                const updatedService = transformService(res.data.data.service);
+                setServices(prev => prev.map(s => s.id === id ? updatedService : s));
+                toast.success("Service updated successfully");
+                return { success: true };
+            }
+        } catch (err) {
+            console.error("Failed to update service", err);
+            toast.error(err.response?.data?.message || "Failed to update service");
+            return { success: false, message: err.message };
         }
     };
 
@@ -342,8 +393,25 @@ export const AdminProvider = ({ children }) => {
         ));
     };
 
-    const updateTechnician = async (id, updatedData) => {
-        console.warn("updateTechnician node connected");
+    const updateTechnicianProfile = async (id, profileData) => {
+        try {
+            const isMultipart = profileData instanceof FormData;
+            const res = await client.patch(`/admin/technicians/${id}/profile`, profileData, {
+                headers: isMultipart ? { 'Content-Type': 'multipart/form-data' } : {}
+            });
+            if (res.data.status === 'success') {
+                const updatedTech = res.data.data.technician;
+                setTechnicians(prev => prev.map(t =>
+                    (t._id === id || t.id === id) ? updatedTech : t
+                ));
+                toast.success("Profile updated");
+                return { success: true, data: updatedTech };
+            }
+        } catch (err) {
+            console.error("Failed to update technician profile", err);
+            toast.error(err.response?.data?.message || "Update failed");
+            return { success: false, message: err.message };
+        }
     };
 
     const addTechnician = async (techData) => {
@@ -473,16 +541,40 @@ export const AdminProvider = ({ children }) => {
         }
     };
 
-    const updateBookingStatus = async (bookingId, status) => {
+    const updateBookingStatus = async (bookingId, status, additionalData = {}) => {
         try {
             // Using the general booking route which we updated to allow Admin bypass
-            const res = await client.patch(`/bookings/${bookingId}/status`, { status });
+            const res = await client.patch(`/bookings/${bookingId}/status`, { status, ...additionalData });
             const updatedBooking = res.data.data.booking;
+
             setAllBookings(prev => prev.map(b => b._id === bookingId ? updatedBooking : b));
-            toast.success(`Booking marked as ${status}`);
+            return { success: true, data: updatedBooking };
         } catch (err) {
             console.error("Failed to update booking status", err);
             toast.error(err.response?.data?.message || "Failed to update status");
+            return { success: false, message: err.message };
+        }
+    };
+
+    const deleteReview = async (id) => {
+        try {
+            await client.delete(`/reviews/${id}`);
+            setReviews(prev => prev.filter(r => r._id !== id));
+            toast.success("Review removed");
+        } catch (err) {
+            console.error("Delete review error", err);
+            toast.error("Failed to delete review");
+        }
+    };
+
+    const deleteFeedback = async (id) => {
+        try {
+            await client.delete(`/feedbacks/${id}`);
+            setFeedbacks(prev => prev.filter(f => f._id !== id));
+            toast.success("Feedback removed");
+        } catch (err) {
+            console.error("Delete feedback error", err);
+            toast.error("Failed to delete feedback");
         }
     };
 
@@ -493,6 +585,8 @@ export const AdminProvider = ({ children }) => {
             categories,
             services,
             technicians,
+            feedbacks,
+            reviews,
             isLoading,
             login,
             logout,
@@ -503,9 +597,10 @@ export const AdminProvider = ({ children }) => {
             addService,
             deleteService,
             updateServicePrice,
+            updateService,
             updateSubServicePrice,
             toggleSubService,
-            updateTechnician,
+            updateTechnicianProfile,
             addTechnician,
             approveTechnician,
             rejectTechnician,
@@ -520,6 +615,8 @@ export const AdminProvider = ({ children }) => {
             assignTechnician,
             updateBookingStatus,
             cancelBooking,
+            deleteReview,
+            deleteFeedback,
             refreshData: fetchData
         }}>
             {children}

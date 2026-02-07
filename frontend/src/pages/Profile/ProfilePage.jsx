@@ -18,6 +18,7 @@ const ProfilePage = () => {
   const navigate = useNavigate();
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackCategory, setFeedbackCategory] = useState('Improvements');
+  const [requestedCategoryName, setRequestedCategoryName] = useState('');
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -55,12 +56,17 @@ const ProfilePage = () => {
     if (!feedbackText.trim()) return;
 
     setIsSubmittingFeedback(true);
-    const result = await submitFeedback(feedbackCategory, feedbackText);
+    const result = await submitFeedback(
+      feedbackCategory === 'New Service' ? 'Category Request' : feedbackCategory,
+      feedbackText,
+      feedbackCategory === 'New Service' ? requestedCategoryName : undefined
+    );
 
     setIsSubmittingFeedback(false);
     if (result.success) {
       setFeedbackSent(true);
       setFeedbackText('');
+      setRequestedCategoryName('');
       setFeedbackCategory('Improvements');
       setTimeout(() => setFeedbackSent(false), 3000);
     } else {
@@ -238,6 +244,22 @@ const ProfilePage = () => {
                   </div>
                 </div>
 
+                {feedbackCategory === 'New Service' && (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <span className="text-[11px] font-black text-amber-500 uppercase tracking-[0.2em]">Service Name Requested</span>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={requestedCategoryName}
+                        onChange={(e) => setRequestedCategoryName(e.target.value)}
+                        placeholder="e.g. Solar Panel Cleaning, Aquarium Maintenance..."
+                        className="w-full p-6 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/50 text-slate-700 dark:text-slate-200 focus:ring-4 focus:ring-amber-500/10 outline-none transition-all font-bold"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-4">
                   <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Your Message</span>
                   <div className="relative">
@@ -252,7 +274,7 @@ const ProfilePage = () => {
 
                 <button
                   type="submit"
-                  disabled={!feedbackText.trim() || isSubmittingFeedback}
+                  disabled={!feedbackText.trim() || (feedbackCategory === 'New Service' && !requestedCategoryName.trim()) || isSubmittingFeedback}
                   className={`w-full py-5 rounded-[1.5rem] font-black text-xs uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 active:scale-[0.98] ${feedbackSent
                     ? 'bg-green-600 text-white shadow-2xl shadow-green-600/30'
                     : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-2xl shadow-slate-900/10 active:scale-[0.98] disabled:opacity-50'
@@ -456,6 +478,20 @@ const ProfilePage = () => {
                 ))}
               </div>
 
+              {feedbackCategory === 'New Service' && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Service Name</span>
+                  <input
+                    type="text"
+                    value={requestedCategoryName}
+                    onChange={(e) => setRequestedCategoryName(e.target.value)}
+                    placeholder="e.g. Pet Grooming..."
+                    className="w-full p-3 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/50 text-sm text-slate-700 dark:text-slate-200 outline-none transition-all font-bold"
+                    required
+                  />
+                </div>
+              )}
+
               <div className="relative">
                 <textarea
                   value={feedbackText}
@@ -466,7 +502,7 @@ const ProfilePage = () => {
               </div>
               <button
                 type="submit"
-                disabled={!feedbackText.trim() || isSubmittingFeedback}
+                disabled={!feedbackText.trim() || (feedbackCategory === 'New Service' && !requestedCategoryName.trim()) || isSubmittingFeedback}
                 className={`w-full py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${feedbackSent
                   ? 'bg-green-600 text-white shadow-lg shadow-green-600/20'
                   : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-lg shadow-slate-900/10 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100'
@@ -549,8 +585,8 @@ const ProfilePage = () => {
 
           <MobileBottomNav />
         </div>
-
       </div>
+
       <EditProfileModal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}

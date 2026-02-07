@@ -243,6 +243,57 @@ exports.deleteTechnician = async (req, res, next) => {
     }
 };
 
+exports.updateTechnicianProfile = async (req, res, next) => {
+    try {
+        const { bio, skills, employeeId, name, phone, address, categories } = req.body;
+        const technician = await TechnicianProfile.findById(req.params.id);
+
+        if (!technician) return next(new AppError('Technician not found', 404));
+
+        // Update Profile fields
+        if (bio !== undefined) technician.bio = bio;
+        if (skills !== undefined) technician.skills = Array.isArray(skills) ? skills : skills.split(',').map(s => s.trim());
+        if (employeeId !== undefined) technician.employeeId = employeeId;
+        if (categories !== undefined) {
+            technician.categories = Array.isArray(categories) ? categories : categories.split(',').map(c => c.trim()).filter(Boolean);
+        }
+        if (address !== undefined) {
+            if (!technician.location) technician.location = { type: 'Point', coordinates: [0, 0] };
+            technician.location.address = address;
+        }
+
+        let profilePhotoUrl = null;
+        if (req.file) {
+            profilePhotoUrl = req.file.path;
+            technician.profilePhoto = profilePhotoUrl;
+        }
+
+        await technician.save();
+
+        // Update User fields if provided
+        if (name || phone || profilePhotoUrl) {
+            const user = await User.findById(technician.user);
+            if (user) {
+                if (name) user.name = name;
+                if (phone) user.phone = phone;
+                if (profilePhotoUrl) user.profilePhoto = profilePhotoUrl;
+                await user.save({ validateBeforeSave: false });
+            }
+        }
+
+        // Populate and return
+        await technician.populate('user', 'name email phone isActive');
+        await technician.populate('categories', 'name');
+
+        res.status(200).json({
+            status: 'success',
+            data: { technician }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 exports.getAllUsers = async (req, res, next) => {
     try {
         const { role, isActive, search, limit, page } = req.query;
@@ -372,8 +423,15 @@ exports.getAllBookings = async (req, res, next) => {
         if (status) filter.status = status.toUpperCase();
 
         const bookings = await Booking.find(filter)
-            .populate('customer', 'name email phone')
-            .populate('technician', 'name email phone')
+            .populate('customer', 'name email phone profilePhoto')
+            .populate({
+                path: 'technician',
+                select: 'name email phone profilePhoto',
+                populate: {
+                    path: 'technicianProfile',
+                    select: 'location'
+                }
+            })
             .populate('category', 'name price')
             .populate('review')
             .sort('-createdAt');
@@ -500,16 +558,43 @@ exports.assignTechnician = async (req, res, next) => {
 
         if (!booking) return next(new AppError('No booking found with that ID', 404));
 
-        const oldTechnicianId = booking.technician;
+        if (['CANCELLED', 'COMPLETED'].includes(booking.status)) {
+            return next(new AppError(`Cannot assign technician to a ${booking.status.toLowerCase()} booking`, 400));
+        }
 
-        // Update technician
+        const oldTechnicianId = booking.technician;
+        const notificationService = require('../services/notificationService');
+
+        if (!technicianId) {
+            // UNASSIGN Logic
+            booking.technician = undefined;
+            booking.status = 'PENDING';
+            await booking.save({ validateBeforeSave: false });
+
+            if (oldTechnicianId) {
+                await notificationService.send({
+                    recipient: oldTechnicianId,
+                    type: 'BOOKING_REMOVED',
+                    title: 'Job Unassigned',
+                    message: `Booking (ID: ${booking._id}) has been removed from your assignments by an administrator.`,
+                    data: { bookingId: booking._id }
+                });
+            }
+
+            const updatedBooking = await Booking.findById(booking._id)
+                .populate('customer', 'name email phone')
+                .populate('category', 'name price');
+
+            return res.status(200).json({ status: 'success', data: { booking: updatedBooking } });
+        }
+
+        // Update technician (Assignment or Reassignment)
         booking.technician = technicianId;
         booking.status = 'ASSIGNED'; // Reset status to ASSIGNED for the new technician to accept
 
         await booking.save({ validateBeforeSave: false });
 
         // Notify New Technician
-        const notificationService = require('../services/notificationService');
         await notificationService.send({
             recipient: technicianId,
             type: 'BOOKING_ASSIGNED',

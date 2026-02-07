@@ -23,7 +23,7 @@ router.post(
 
 router.patch(
     '/:id',
-    authMiddleware.restrictTo('TECHNICIAN'),
+    authMiddleware.restrictTo('TECHNICIAN', 'ADMIN'),
     validate(serviceValidation.updateService),
     serviceController.updateService
 );

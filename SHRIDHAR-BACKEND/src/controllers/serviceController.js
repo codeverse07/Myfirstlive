@@ -89,8 +89,7 @@ exports.getAllServices = async (req, res, next) => {
         const invalidProfiles = await TechnicianProfile.find({
             user: { $in: activeProviderIds },
             $or: [
-                { 'documents.verificationStatus': 'REJECTED' },
-                { isOnline: false }
+                { 'documents.verificationStatus': 'REJECTED' }
             ]
         }).select('user');
 
@@ -261,7 +260,8 @@ exports.updateService = async (req, res, next) => {
         }
 
         // Check ownership
-        if (service.technician.toString() !== req.user.id) {
+        const isOwner = service.technician && service.technician.toString() === req.user.id;
+        if (!isOwner && req.user.role !== 'ADMIN') {
             return next(new AppError('You are not authorized to update this service', 403));
         }
 
@@ -300,7 +300,8 @@ exports.deleteService = async (req, res, next) => {
         }
 
         // Check ownership (or Admin)
-        if (service.technician.toString() !== req.user.id && req.user.role !== 'ADMIN') {
+        const isOwner = service.technician && service.technician.toString() === req.user.id;
+        if (!isOwner && req.user.role !== 'ADMIN') {
             return next(new AppError('You are not authorized to delete this service', 403));
         }
 

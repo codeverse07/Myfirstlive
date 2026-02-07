@@ -16,7 +16,9 @@ const ServiceCard = ({ service, onBook, variant = 'user', onEdit, onDelete }) =>
                         <p className="text-xs text-slate-500 line-clamp-1">{service.description}</p>
                         <div className="flex items-center gap-2 mt-2">
                             <span className="text-sm font-black text-slate-900 dark:text-white">₹{service.price}</span>
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{service.category}</span>
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                {typeof service.category === 'string' ? service.category : service.category?.name}
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -70,7 +72,7 @@ const ServiceCard = ({ service, onBook, variant = 'user', onEdit, onDelete }) =>
                         {service.title}
                     </h3>
                     <div className="flex items-center gap-2 text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">
-                        <span>{service.category}</span>
+                        <span>{typeof service.category === 'string' ? service.category : service.category?.name}</span>
                         <span className="w-1 h-1 bg-slate-300 rounded-full" />
                         <span>Home Services</span>
                     </div>

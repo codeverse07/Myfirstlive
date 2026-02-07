@@ -53,14 +53,37 @@ class SocketService {
             }
         });
 
-        this.io.on('connection', (socket) => {
+        this.io.on('connection', async (socket) => {
             console.log(`Socket connected: ${socket.user.name} (${socket.user.id})`);
 
             // Join a private room for the user
             socket.join(`user:${socket.user.id}`);
 
-            socket.on('disconnect', () => {
+            if (socket.user.role === 'ADMIN') {
+                socket.join('admin-room');
+            }
+
+            if (socket.user.role === 'TECHNICIAN') {
+                try {
+                    const TechnicianProfile = require('../models/TechnicianProfile');
+                    await TechnicianProfile.findOneAndUpdate({ user: socket.user.id }, { isOnline: true });
+                    this.io.to('admin-room').emit('technician:online', { userId: socket.user.id });
+                } catch (err) {
+                    console.error('Error updating technician online status:', err);
+                }
+            }
+
+            socket.on('disconnect', async () => {
                 console.log(`Socket disconnected: ${socket.user.name}`);
+                if (socket.user.role === 'TECHNICIAN') {
+                    try {
+                        const TechnicianProfile = require('../models/TechnicianProfile');
+                        await TechnicianProfile.findOneAndUpdate({ user: socket.user.id }, { isOnline: false });
+                        this.io.to('admin-room').emit('technician:offline', { userId: socket.user.id });
+                    } catch (err) {
+                        console.error('Error updating technician offline status:', err);
+                    }
+                }
             });
         });
 

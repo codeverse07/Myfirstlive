@@ -1,42 +1,105 @@
 import React, { useState } from 'react';
 import { useAdmin } from '../../context/AdminContext';
-import { Plus, Search, Trash2, Edit2, Wrench, X, Check, Image as ImageIcon, DollarSign, Loader } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, Wrench, X, Check, Image as ImageIcon, DollarSign, Loader, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'react-hot-toast';
 
 const AdminServices = () => {
-    const { services, categories, addService, deleteService, updateServicePrice } = useAdmin();
+    const { services, categories, addService, deleteService, updateService } = useAdmin();
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingService, setEditingService] = useState(null);
+    const [actionLoading, setActionLoading] = useState({});
 
     // Filter Logic
     const filteredServices = services.filter(service => {
         const matchesSearch = service.title.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesCategory = selectedCategory === 'all' || service.category === selectedCategory;
+        const matchesCategory = selectedCategory === 'all' || service.category === selectedCategory || service.normalizedCategory === selectedCategory;
         return matchesSearch && matchesCategory;
     });
 
-    const [newService, setNewService] = useState({
+    const [formData, setFormData] = useState({
         title: '',
         category: '',
         price: '',
         description: '',
-        image: ''
+        image: '',
+        isActive: true
     });
 
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleAddService = async (e) => {
+    const openAddModal = () => {
+        setEditingService(null);
+        setFormData({ title: '', category: '', price: '', description: '', image: '', isActive: true });
+        setIsModalOpen(true);
+    };
+
+    const openEditModal = (service) => {
+        setEditingService(service);
+        setFormData({
+            title: service.title,
+            category: service.category, // ID
+            price: service.price,
+            description: service.description,
+            image: service.image, // URL
+            isActive: service.isActive !== false
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
         try {
-            const res = await addService(newService);
-            if (res && res.success) {
-                setIsAddModalOpen(false);
-                setNewService({ title: '', category: '', price: '', description: '', image: '' });
+            const data = new FormData();
+            data.append('title', formData.title);
+            data.append('category', formData.category);
+            data.append('price', formData.price);
+            data.append('description', formData.description);
+            // data.append('isActive', formData.isActive); // Often handled by separate endpoint or needs backend support in create/update
+
+            if (formData.imageFile) {
+                data.append('headerImage', formData.imageFile); // Backend expects 'headerImage'
+            } else if (formData.image && !editingService) {
+                // If creating and using a URL fallback (rare for File input UI but possible)
+                // data.append('headerImage', formData.image); 
             }
+
+            let res;
+            if (editingService) {
+                res = await updateService(editingService.id, data);
+            } else {
+                res = await addService(formData); // addService handles FormData construction internally if passed object with imageFile
+            }
+
+            if (res && res.success) {
+                setIsModalOpen(false);
+                setFormData({ title: '', category: '', price: '', description: '', image: '', isActive: true });
+                setEditingService(null);
+            }
+        } catch (error) {
+            console.error(error);
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handleToggleStatus = async (service) => {
+        const id = service.id;
+        setActionLoading(prev => ({ ...prev, [`toggle_${id}`]: true }));
+        try {
+            // We use updateService for this too
+            // Note: If backend expects JSON for simple updates, we should use that. 
+            // Our context updateService handles both but lets try simple object first.
+            const payload = { isActive: !service.isActive };
+            await updateService(id, payload);
+            toast.success(`Service ${!service.isActive ? 'Activated' : 'Deactivated'}`);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setActionLoading(prev => ({ ...prev, [`toggle_${id}`]: false }));
         }
     };
 
@@ -49,7 +112,7 @@ const AdminServices = () => {
                     <p className="text-slate-500 dark:text-slate-400 font-medium">Manage global service offerings</p>
                 </div>
                 <button
-                    onClick={() => setIsAddModalOpen(true)}
+                    onClick={openAddModal}
                     className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20 active:scale-95"
                 >
                     <Plus className="w-5 h-5" />
@@ -93,15 +156,41 @@ const AdminServices = () => {
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.9 }}
                             layout
-                            className="bg-white dark:bg-slate-900 rounded-2xl md:rounded-4xl overflow-hidden border border-slate-100 dark:border-slate-800 hover:shadow-xl hover:shadow-indigo-500/10 transition-all group"
+                            className={`bg-white dark:bg-slate-900 rounded-2xl md:rounded-4xl overflow-hidden border ${service.isActive === false ? 'border-red-500/30' : 'border-slate-100 dark:border-slate-800'} hover:shadow-xl hover:shadow-indigo-500/10 transition-all group relative`}
                         >
+                            {/* Active Status Toggle on Card */}
+                            <div className="absolute top-4 left-4 z-10">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleToggleStatus(service);
+                                    }}
+                                    disabled={actionLoading[`toggle_${service.id}`]}
+                                    className={`relative w-10 h-6 rounded-full transition-colors duration-300 ${service.isActive !== false ? 'bg-green-500' : 'bg-slate-600/50 backdrop-blur'} shadow-lg`}
+                                    title={service.isActive !== false ? "Active" : "Inactive"}
+                                >
+                                    {actionLoading[`toggle_${service.id}`] ? (
+                                        <Loader className="w-3 h-3 text-white absolute top-1.5 left-3.5 animate-spin" />
+                                    ) : (
+                                        <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-sm ${service.isActive !== false ? 'translate-x-4' : 'translate-x-0'}`} />
+                                    )}
+                                </button>
+                            </div>
+
                             <div className="h-48 relative overflow-hidden">
                                 <img
                                     src={service.image}
                                     alt={service.title}
-                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                    className={`w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ${service.isActive === false ? 'grayscale' : ''}`}
                                 />
                                 <div className="absolute top-4 right-4 flex gap-2">
+                                    <button
+                                        onClick={() => openEditModal(service)}
+                                        className="p-2 bg-white/90 backdrop-blur-sm text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-lg"
+                                        title="Edit Service"
+                                    >
+                                        <Edit2 className="w-4 h-4" />
+                                    </button>
                                     <button
                                         onClick={() => deleteService(service.id)}
                                         className="p-2 bg-white/90 backdrop-blur-sm text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-lg"
@@ -112,7 +201,7 @@ const AdminServices = () => {
                                 </div>
                                 <div className="absolute bottom-4 left-4">
                                     <span className="px-3 py-1 bg-black/50 backdrop-blur-md text-white text-xs font-bold rounded-lg uppercase tracking-wider">
-                                        {service.categoryName || service.category || 'General'}
+                                        {service.categoryName || 'General'}
                                     </span>
                                 </div>
                             </div>
@@ -130,19 +219,6 @@ const AdminServices = () => {
                                             <span className="font-extrabold text-xl">₹{service.price}</span>
                                         </div>
                                     </div>
-
-                                    {/* Quick Edit Price */}
-                                    <button
-                                        onClick={() => {
-                                            const newPrice = prompt("Enter new price:", service.price);
-                                            if (newPrice && !isNaN(newPrice)) {
-                                                updateServicePrice(service.id, newPrice);
-                                            }
-                                        }}
-                                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-all"
-                                    >
-                                        <Edit2 className="w-4 h-4" />
-                                    </button>
                                 </div>
                             </div>
                         </motion.div>
@@ -150,15 +226,15 @@ const AdminServices = () => {
                 </AnimatePresence>
             </div>
 
-            {/* Add Service Modal */}
+            {/* Add/Edit Service Modal */}
             <AnimatePresence>
-                {isAddModalOpen && (
+                {isModalOpen && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            onClick={() => setIsAddModalOpen(false)}
+                            onClick={() => setIsModalOpen(false)}
                             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
                         />
                         <motion.div
@@ -170,15 +246,15 @@ const AdminServices = () => {
                             <div className="p-8">
                                 <div className="flex items-center justify-between mb-8">
                                     <div>
-                                        <h2 className="text-2xl font-black text-slate-900 dark:text-white">New Service</h2>
-                                        <p className="text-slate-500 text-sm font-bold">Add a global service offering</p>
+                                        <h2 className="text-2xl font-black text-slate-900 dark:text-white">{editingService ? 'Edit Service' : 'New Service'}</h2>
+                                        <p className="text-slate-500 text-sm font-bold">{editingService ? 'Modify service details' : 'Add a global service offering'}</p>
                                     </div>
-                                    <button onClick={() => setIsAddModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+                                    <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
                                         <X className="w-6 h-6 text-slate-500" />
                                     </button>
                                 </div>
 
-                                <form onSubmit={handleAddService} className="space-y-6">
+                                <form onSubmit={handleSubmit} className="space-y-6">
                                     <div className="space-y-4">
                                         <div>
                                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Service Title</label>
@@ -186,8 +262,8 @@ const AdminServices = () => {
                                                 <Wrench className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                                                 <input
                                                     type="text"
-                                                    value={newService.title}
-                                                    onChange={e => setNewService({ ...newService, title: e.target.value })}
+                                                    value={formData.title}
+                                                    onChange={e => setFormData({ ...formData, title: e.target.value })}
                                                     placeholder="e.g. Deep Cleaning"
                                                     className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold text-slate-900 dark:text-white"
                                                     required
@@ -199,8 +275,8 @@ const AdminServices = () => {
                                             <div>
                                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Category</label>
                                                 <select
-                                                    value={newService.category}
-                                                    onChange={e => setNewService({ ...newService, category: e.target.value })}
+                                                    value={formData.category}
+                                                    onChange={e => setFormData({ ...formData, category: e.target.value })}
                                                     className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold text-slate-900 dark:text-white appearance-none"
                                                     required
                                                 >
@@ -216,8 +292,8 @@ const AdminServices = () => {
                                                     <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                                     <input
                                                         type="number"
-                                                        value={newService.price}
-                                                        onChange={e => setNewService({ ...newService, price: e.target.value })}
+                                                        value={formData.price}
+                                                        onChange={e => setFormData({ ...formData, price: e.target.value })}
                                                         placeholder="499"
                                                         className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold text-slate-900 dark:text-white"
                                                         required
@@ -229,8 +305,8 @@ const AdminServices = () => {
                                         <div>
                                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Description</label>
                                             <textarea
-                                                value={newService.description}
-                                                onChange={e => setNewService({ ...newService, description: e.target.value })}
+                                                value={formData.description}
+                                                onChange={e => setFormData({ ...formData, description: e.target.value })}
                                                 placeholder="Describe what's included..."
                                                 className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 font-bold text-slate-900 dark:text-white min-h-25"
                                             />
@@ -240,13 +316,13 @@ const AdminServices = () => {
                                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Service Image</label>
 
                                             <div
-                                                className={`relative w-full h-40 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center cursor-pointer overflow-hidden ${newService.imageFile || newService.image ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-800 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                                                className={`relative w-full h-40 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center cursor-pointer overflow-hidden ${formData.imageFile || formData.image ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20' : 'border-slate-200 dark:border-slate-800 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                                                 onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
                                                 onDrop={(e) => {
                                                     e.preventDefault(); e.stopPropagation();
                                                     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
                                                         const file = e.dataTransfer.files[0];
-                                                        setNewService({ ...newService, imageFile: file, image: URL.createObjectURL(file) });
+                                                        setFormData({ ...formData, imageFile: file, image: URL.createObjectURL(file) });
                                                     }
                                                 }}
                                                 onClick={() => document.getElementById('service-image-input').click()}
@@ -259,13 +335,13 @@ const AdminServices = () => {
                                                     onChange={(e) => {
                                                         if (e.target.files && e.target.files[0]) {
                                                             const file = e.target.files[0];
-                                                            setNewService({ ...newService, imageFile: file, image: URL.createObjectURL(file) });
+                                                            setFormData({ ...formData, imageFile: file, image: URL.createObjectURL(file) });
                                                         }
                                                     }}
                                                 />
-                                                {newService.image ? (
+                                                {formData.image ? (
                                                     <>
-                                                        <img src={newService.image} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
+                                                        <img src={formData.image} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
                                                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                                                             <p className="text-white font-bold text-xs uppercase tracking-widest">Change Image</p>
                                                         </div>
@@ -291,12 +367,12 @@ const AdminServices = () => {
                                         {isSubmitting ? (
                                             <>
                                                 <Loader className="w-5 h-5 animate-spin" />
-                                                Creating...
+                                                {editingService ? 'Saving...' : 'Creating...'}
                                             </>
                                         ) : (
                                             <>
-                                                <Plus className="w-5 h-5" />
-                                                Create Service
+                                                <CheckCircle2 className="w-5 h-5" />
+                                                {editingService ? 'Save Changes' : 'Create Service'}
                                             </>
                                         )}
                                     </button>

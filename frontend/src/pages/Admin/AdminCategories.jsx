@@ -93,6 +93,25 @@ const AdminCategories = () => {
         setIsAdding(true);
     };
 
+    const handleToggleStatus = async (cat) => {
+        const id = cat._id || cat.id;
+        setActionLoading(prev => ({ ...prev, [`toggle_${id}`]: true }));
+        try {
+            const formData = new FormData();
+            // Important: We need to send other required fields if backend validation requires them, 
+            // but typical PATCH only updates sent fields. Assuming PATCH implementation in backend.
+            formData.append('isActive', !cat.isActive);
+
+            await updateCategory(id, formData);
+            toast.success(`Category ${!cat.isActive ? 'Activated' : 'Deactivated'}`);
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to update status");
+        } finally {
+            setActionLoading(prev => ({ ...prev, [`toggle_${id}`]: false }));
+        }
+    };
+
     return (
         <div className="space-y-8 max-w-7xl mx-auto pb-12">
             {/* Header */}
@@ -159,6 +178,23 @@ const AdminCategories = () => {
                                         className="p-2.5 bg-red-500/20 backdrop-blur-md rounded-xl text-red-100 hover:bg-red-500/40 transition-all"
                                     >
                                         {actionLoading[cat._id || cat.id] ? <Loader className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                                {/* Active Status Toggle on Card */}
+                                <div className="absolute bottom-4 right-4">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleToggleStatus(cat);
+                                        }}
+                                        disabled={actionLoading[`toggle_${cat._id || cat.id}`]}
+                                        className={`relative w-10 h-6 rounded-full transition-colors duration-300 ${cat.isActive ? 'bg-green-500' : 'bg-slate-600/50 backdrop-blur'} shadow-lg`}
+                                    >
+                                        {actionLoading[`toggle_${cat._id || cat.id}`] ? (
+                                            <Loader className="w-3 h-3 text-white absolute top-1.5 left-3.5 animate-spin" />
+                                        ) : (
+                                            <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform duration-300 shadow-sm ${cat.isActive ? 'translate-x-4' : 'translate-x-0'}`} />
+                                        )}
                                     </button>
                                 </div>
                             </div>

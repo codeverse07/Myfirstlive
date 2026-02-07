@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { Search, ArrowRight, ShieldCheck, Clock, Award, Hammer, Zap, Refrigerator, Droplets, Truck, Calendar, Map, CheckCircle } from 'lucide-react';
-import { useServices, useCategories } from '../../hooks/useServices';
+// import { useAdmin } from '../../context/AdminContext';
 import ServiceCard from '../../components/common/ServiceCard';
 import ServiceStack from '../../components/home/ServiceStack';
 import Button from '../../components/common/Button';
@@ -11,6 +11,7 @@ import Particles from '../../react-bit/Particle';
 import BookingModal from '../../components/bookings/BookingModal';
 import { useBookings } from '../../context/BookingContext';
 import { useNavigate } from 'react-router-dom';
+import { useServices, useCategories } from '../../hooks/useServices';
 
 import promoImg from '../../assets/images/fridge-repair.png';
 import MobileHomePage from './MobileHomePage';
@@ -19,7 +20,6 @@ import TextType from '../../react-bit/TextType';
 import SupermanTechnician from '../../components/home/SupermanTechnician';
 import { motion, AnimatePresence } from 'framer-motion';
 import MobileServiceDetail from '../Services/MobileServiceDetail';
-import CategoryGrid from '../../components/home/CategoryGrid';
 
 
 const iconMap = {
@@ -39,9 +39,11 @@ const placeholders = [
 
 const particleColors = ['#ffffff', '#aaacb9'];
 
+
+
 const HomePage = () => {
   const { data: categories = [] } = useCategories();
-  const { data: servicesData } = useServices();
+  const { data: servicesData, isLoading: servicesLoading } = useServices({ limit: 10 });
   const services = servicesData?.services || [];
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [typingStep, setTypingStep] = useState(0);
@@ -64,21 +66,16 @@ const HomePage = () => {
     }
   };
 
-  const handleDetailsClick = (category) => {
-    // Navigate to services page with the selected category filter
-    navigate('/services', { state: { category: category.name || category.title } });
+  const handleDetailsClick = (service) => {
+    setSelectedService(service);
+    // Open MobileServiceDetail even on desktop as a quick-view modal
+    setIsMobileDetailOpen(true);
   };
 
-  const handleConfirmBooking = async (bookingData) => {
-    try {
-      const result = await addBooking(bookingData);
-      // Wait for success before redirecting to allow Modal to show success state
-      // (The Modal handles its own success state internally now)
-      return result;
-    } catch (err) {
-      console.error("Booking error:", err);
-      throw err;
-    }
+  const handleConfirmBooking = (bookingData) => {
+    addBooking(bookingData);
+    setIsModalOpen(false);
+    navigate('/bookings');
   };
 
   useGSAP(() => {
@@ -367,17 +364,26 @@ const HomePage = () => {
           <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full animate-item">
             <div className="flex justify-between items-end mb-8">
               <div>
-                <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-3">Browse by Category</h2>
-                <p className="text-slate-500 dark:text-slate-400 text-lg">Compare prices and ratings across our top services</p>
+                <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-3">Most Popular Services</h2>
+                <p className="text-slate-500 dark:text-slate-400 text-lg">Booked by thousands of customers</p>
               </div>
+              <Link to="/services">
+                <Button variant="ghost" className="hidden sm:flex text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white" size="sm">
+                  View All <ArrowRight className="ml-2 w-4 h-4" />
+                </Button>
+              </Link>
             </div>
 
-            <CategoryGrid
-              services={services}
-              categories={categories}
-              onBook={(cat) => handleDetailsClick(cat)}
-              onDetails={(cat) => handleDetailsClick(cat)}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {services.slice(0, 3).map((service) => (
+                <ServiceCard
+                  key={service.id}
+                  service={service}
+                  onBook={handleBookClick}
+                  onDetails={handleDetailsClick}
+                />
+              ))}
+            </div>
           </section>
 
 
@@ -432,7 +438,7 @@ const HomePage = () => {
         <AnimatePresence>
           {isMobileDetailOpen && selectedService && (
             <MobileServiceDetail
-              serviceId={selectedService.id}
+              service={selectedService}
               onClose={() => setIsMobileDetailOpen(false)}
             />
           )}

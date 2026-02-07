@@ -143,7 +143,7 @@ export const UserProvider = ({ children }) => {
 
     // Placeholder for address/profile updates to also hit API
     // For now, keeping local state sync but adding API calls would be next step.
-const updateProfile = async (userData) => {
+    const updateProfile = async (userData) => {
         try {
             const res = await client.patch('/users/update-me', userData);
             if (res.data.status === 'success' && res.data.data.user) {
@@ -161,9 +161,9 @@ const updateProfile = async (userData) => {
         }
     };
 
-    const submitFeedback = async (category, message) => {
+    const submitFeedback = async (category, message, requestedCategoryName) => {
         try {
-            const res = await client.post('/feedbacks', { category, message });
+            const res = await client.post('/feedbacks', { category, message, requestedCategoryName });
             return { success: res.data.status === 'success' };
         } catch (err) {
             console.error('Feedback submission failed:', err);

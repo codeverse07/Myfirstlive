@@ -103,7 +103,9 @@ const SavedServicesPage = () => {
                                             <span className="text-xs font-bold">{service.rating}</span>
                                         </div>
                                     </div>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-black tracking-widest mb-4">{service.category}</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-black tracking-widest mb-4">
+                                        {typeof service.category === 'string' ? service.category : service.category?.name}
+                                    </p>
                                     <div className="flex items-center justify-between border-t border-slate-50 dark:border-slate-800 pt-4">
                                         <span className="text-lg font-black text-slate-900 dark:text-white">₹{service.price}</span>
                                         <Button

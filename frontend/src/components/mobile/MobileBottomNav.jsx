@@ -8,7 +8,7 @@ const MobileBottomNav = ({ className }) => {
   const currentPath = location.pathname;
   const { setIsChatOpen, user } = useUser();
 
-const navItems = user?.role === 'TECHNICIAN'
+  const navItems = user?.role === 'TECHNICIAN'
     ? [
       { icon: Home, label: 'Dashboard', path: '/technician/dashboard' },
       { icon: Search, label: 'Search', path: '/search' },
@@ -22,7 +22,7 @@ const navItems = user?.role === 'TECHNICIAN'
     ];
 
   return (
-    <div className={`fixed bottom-6 left-6 right-6 backdrop-blur-xl border border-white/40 dark:border-white/10 px-6 py-3 shadow-2xl shadow-rose-900/10 dark:shadow-black/40 rounded-full z-50 flex justify-between items-center md:hidden transition-all hover:scale-[1.01] ${className || 'bg-white/50 supports-[backdrop-filter]:bg-white/40 dark:bg-slate-900/60'}`}>
+    <div className={`fixed bottom-6 left-6 right-6 backdrop-blur-xl border border-white/40 dark:border-white/10 px-6 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-2xl shadow-rose-900/10 dark:shadow-black/40 rounded-full z-50 flex justify-between items-center md:hidden transition-all hover:scale-[1.01] ${className || 'bg-white/50 supports-[backdrop-filter]:bg-white/40 dark:bg-slate-900/60'}`}>
       {navItems.map((item) => {
         const isActive = currentPath === item.path;
         return (

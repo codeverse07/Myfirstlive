@@ -309,13 +309,14 @@ exports.updateBookingStatus = async (req, res, next) => {
                     filesCount: req.files?.length || 0
                 });
 
-                // 1. Verify Happy Pin (Skip for Admin)
-                if (!isAdmin) {
+                // 1. Verify Happy Pin (Required for Technician, OR if Pin is provided by Admin)
+                const isPinRequired = !isAdmin || (isAdmin && securityPin);
+                if (isPinRequired) {
                     const inputPin = securityPin ? String(securityPin).trim() : '';
                     const storedPin = booking.securityPin ? String(booking.securityPin).trim() : '';
 
                     if (!inputPin || inputPin !== storedPin) {
-                        return next(new AppError(`Invalid Happy Pin provided.`, 400));
+                        return next(new AppError('Invalid Happy Pin provided.', 400));
                     }
                 }
 
@@ -338,12 +339,23 @@ exports.updateBookingStatus = async (req, res, next) => {
                     booking.partImages = req.files.map(file => file.path);
                 }
                 booking.securityPin = undefined;
+
+                // Update Technician Stats & Status
+                if (booking.technician) {
+                    await TechnicianProfile.findOneAndUpdate(
+                        { user: booking.technician },
+                        {
+                            $inc: { totalJobs: 1 },
+                            $set: { status: 'ONLINE' } // Job done, now available
+                        }
+                    );
+                }
             }
 
             await notificationService.send({
                 recipient: booking.customer,
                 type: `BOOKING_${status}`,
-                title: `Booking Update: ${status.replace('_', ' ')}`,
+                title: `Booking Update: ${(status || '').replace('_', ' ')}`,
                 message: `Status update for ${booking.category?.name || 'Unknown Category'}: ${status}`,
                 data: { bookingId: booking._id }
             });

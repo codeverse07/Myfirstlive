@@ -12,10 +12,6 @@ const router = express.Router({ mergeParams: true });
 router.use(authMiddleware.protect);
 
 router
-    .route('/reviews')
-    .get(authMiddleware.restrictTo('ADMIN'), reviewController.getAllReviews);
-
-router
     .route('/')
     .post(
         authMiddleware.restrictTo('USER'),
@@ -27,6 +23,9 @@ router
         authMiddleware.restrictTo('USER'),
         reviewController.updateReview
     );
+
+router.get('/all', authMiddleware.restrictTo('ADMIN'), reviewController.getAllReviews);
+router.delete('/:id', authMiddleware.restrictTo('ADMIN'), reviewController.deleteReview); // New Admin Delete Route
 
 router.get('/technician/:technicianId', reviewController.getTechnicianReviews);
 
