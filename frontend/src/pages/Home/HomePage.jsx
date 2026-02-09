@@ -19,7 +19,7 @@ import SplitText from '../../react-bit/SplitText';
 import TextType from '../../react-bit/TextType';
 import SupermanTechnician from '../../components/home/SupermanTechnician';
 import { motion, AnimatePresence } from 'framer-motion';
-import MobileServiceDetail from '../Services/MobileServiceDetail';
+// import MobileServiceDetail from '../Services/MobileServiceDetail';
 
 
 const iconMap = {
@@ -54,22 +54,15 @@ const HomePage = () => {
   const { addBooking } = useBookings();
   const [selectedService, setSelectedService] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
+  const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false); // Kept to avoid breaking references temporarily
 
   const handleBookClick = (service) => {
     setSelectedService(service);
-    if (window.innerWidth >= 768) {
-      // On desktop, merge details into booking flow
-      setIsMobileDetailOpen(true);
-    } else {
-      setIsModalOpen(true);
-    }
+    setIsModalOpen(true);
   };
 
   const handleDetailsClick = (service) => {
-    setSelectedService(service);
-    // Open MobileServiceDetail even on desktop as a quick-view modal
-    setIsMobileDetailOpen(true);
+    navigate(`/services/${service.id || service._id}`);
   };
 
   const handleConfirmBooking = (bookingData) => {
@@ -193,7 +186,7 @@ const HomePage = () => {
     <>
       <div className="relative min-h-screen">
         {/* Dynamic Background System */}
-        <div className="fixed inset-0 bg-slate-50 dark:bg-slate-950 z-0" />
+        <div className="fixed inset-0 bg-transparent dark:bg-slate-950 z-0" />
         <div
           ref={overlayRef}
           className="fixed inset-0 z-0 pointer-events-none transition-opacity duration-75 ease-linear"
@@ -437,10 +430,8 @@ const HomePage = () => {
 
         <AnimatePresence>
           {isMobileDetailOpen && selectedService && (
-            <MobileServiceDetail
-              service={selectedService}
-              onClose={() => setIsMobileDetailOpen(false)}
-            />
+            /* MobileServiceDetail removed */
+            null
           )}
         </AnimatePresence>
       </div >

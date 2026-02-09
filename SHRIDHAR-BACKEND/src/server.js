@@ -1,6 +1,7 @@
 require('dotenv').config();
 const app = require('./app');
 const connectDB = require('./config/db');
+// Trigger restart for env update
 const socketService = require('./utils/socket'); // Import Socket Service
 
 const PORT = process.env.PORT || 5000;

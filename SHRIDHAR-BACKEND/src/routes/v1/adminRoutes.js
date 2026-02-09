@@ -16,10 +16,11 @@ router.patch('/users/:id/status', adminController.toggleUserStatus); // Body: { 
 
 // --- TECHNICIAN MANAGEMENT ---
 router.get('/technicians', adminController.getAllTechnicians);
-router.post('/technicians', adminController.createTechnician);
+router.post('/technicians', require('../../middlewares/upload').single('agreement'), adminController.createTechnician);
 router.patch('/technicians/:id/approve', adminController.approveTechnician);
 router.patch('/technicians/:id/reject', adminController.rejectTechnician);
 router.patch('/technicians/:id/profile', require('../../middlewares/upload').single('profilePhoto'), adminController.updateTechnicianProfile);
+router.patch('/technicians/:id/reset-password', adminController.fulfillPasswordReset);
 router.delete('/technicians/:id', adminController.deleteTechnician);
 
 

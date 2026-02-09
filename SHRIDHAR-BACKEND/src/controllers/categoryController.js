@@ -55,6 +55,14 @@ exports.createCategory = async (req, res, next) => {
 
         console.log('[DEBUG] Category Created:', newCategory);
 
+        // Socket Emission for Admin
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('category:created', newCategory);
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
+
         res.status(201).json({
             status: 'success',
             data: {
@@ -101,6 +109,14 @@ exports.updateCategory = async (req, res, next) => {
             return next(new AppError('No category found with that ID', 404));
         }
 
+        // Socket Emission for Admin
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('category:updated', category);
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
+
         res.status(200).json({
             status: 'success',
             data: {
@@ -118,6 +134,14 @@ exports.deleteCategory = async (req, res, next) => {
 
         if (!category) {
             return next(new AppError('No category found with that ID', 404));
+        }
+
+        // Socket Emission for Admin
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('category:deleted', { id: req.params.id });
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
         }
 
         res.status(204).json({

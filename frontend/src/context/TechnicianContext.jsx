@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import client from '../api/client';
 import { useUser } from './UserContext';
+import { useSocket } from './SocketContext';
+import { useSound } from './SoundContext';
 import { toast } from 'react-hot-toast';
 
 const TechnicianContext = createContext();
@@ -9,6 +11,8 @@ export const useTechnician = () => useContext(TechnicianContext);
 
 export const TechnicianProvider = ({ children }) => {
     const { user, isAuthenticated } = useUser();
+    const { socket } = useSocket();
+    const { playNotificationSound } = useSound();
     const [technicianProfile, setTechnicianProfile] = useState(null);
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -176,8 +180,8 @@ export const TechnicianProvider = ({ children }) => {
 
     const fetchTechnicianReviews = async () => {
         try {
-            if (!technicianProfile?._id) return;
-            const res = await client.get(`/technicians/${technicianProfile._id}/reviews`);
+            if (!user?._id) return;
+            const res = await client.get(`/reviews/technician/${user._id}`);
             setReviews(res.data.data.reviews);
         } catch (error) {
             console.error("Error fetching reviews", error);
@@ -193,7 +197,6 @@ export const TechnicianProvider = ({ children }) => {
         }
     };
 
-    // Initial Data Load
     useEffect(() => {
         if (isAuthenticated && user?.role === 'TECHNICIAN') {
             fetchTechnicianStats();
@@ -201,9 +204,48 @@ export const TechnicianProvider = ({ children }) => {
             fetchTechnicianReviews();
             fetchReasons();
         }
-    }, [isAuthenticated, user, technicianProfile?._id]);
+    }, [isAuthenticated, user?._id]);
 
-    // Auto-refresh for new jobs (Polling as fallback for sockets)
+    // Real-time Updates via Socket.IO
+    useEffect(() => {
+        if (isAuthenticated && user?.role === 'TECHNICIAN' && socket) {
+            const handleNotification = (data) => {
+                // Play sound
+                playNotificationSound();
+
+                // Show notification toast
+                toast(t => (
+                    <div onClick={() => toast.dismiss(t.id)} className="cursor-pointer">
+                        <p className="font-bold text-sm">{data.title}</p>
+                        <p className="text-xs">{data.message}</p>
+                    </div>
+                ), { position: 'top-right', duration: 5000, icon: '🔔' });
+
+                // Refresh data
+                fetchTechnicianBookings();
+                fetchTechnicianStats();
+                fetchTechnicianReviews();
+            };
+
+            const handleBookingUpdated = (updatedBooking) => {
+                // Play sound for job updates too if relevant
+                playNotificationSound();
+
+                setJobs(prev => prev.map(j => j._id === updatedBooking._id ? updatedBooking : j));
+                fetchTechnicianStats();
+            };
+
+            socket.on('notification', handleNotification);
+            socket.on('booking:updated', handleBookingUpdated);
+
+            return () => {
+                socket.off('notification', handleNotification);
+                socket.off('booking:updated', handleBookingUpdated);
+            };
+        }
+    }, [isAuthenticated, user, socket, playNotificationSound]);
+
+    // Polling as fallback (keep existing but reduced frequency if socket is active? No, keep as backup)
     useEffect(() => {
         let interval;
         if (isAuthenticated && user?.role === 'TECHNICIAN') {
@@ -298,7 +340,20 @@ export const TechnicianProvider = ({ children }) => {
         fetchTechnicianStats,
         fetchTechnicianReviews,
         fetchReasons,
-        updateBookingStatus
+        updateBookingStatus,
+        requestPasswordReset: async () => {
+            try {
+                const res = await client.patch('/technicians/request-reset');
+                if (res.data.status === 'success') {
+                    toast.success("Reset request submitted to admin");
+                    return { success: true };
+                }
+            } catch (error) {
+                console.error("Request reset failed", error);
+                toast.error(error.response?.data?.message || "Request failed");
+                return { success: false };
+            }
+        }
     };
 
     return <TechnicianContext.Provider value={value}>{children}</TechnicianContext.Provider>;

@@ -13,7 +13,11 @@ export const SocketProvider = ({ children }) => {
     useEffect(() => {
         if (isAuthenticated && user) {
             // Initialize socket connection
-            const newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', {
+            // Ensure we connect to the base URL (e.g., http://localhost:5000) not the API path (e.g., .../api/v1)
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            const socketUrl = new URL(apiUrl).origin;
+
+            const newSocket = io(socketUrl, {
                 withCredentials: true,
                 autoConnect: true,
                 reconnection: true,
@@ -24,7 +28,6 @@ export const SocketProvider = ({ children }) => {
             setSocket(newSocket);
 
             newSocket.on('connect', () => {
-                console.log('Socket connected:', newSocket.id);
             });
 
             newSocket.on('connect_error', (err) => {

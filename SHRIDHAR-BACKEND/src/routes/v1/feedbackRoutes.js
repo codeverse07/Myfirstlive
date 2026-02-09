@@ -9,11 +9,9 @@ router.use(protect);
 
 router.post('/', feedbackController.createFeedback);
 
-// Public route for all authenticated users to view feedbacks
-router.get('/', feedbackController.getAllFeedback);
-
 // Admin only routes for managing feedback
 router.use(restrictTo('ADMIN'));
+router.get('/', feedbackController.getAllFeedback);
 router.patch('/:id/status', feedbackController.updateFeedbackStatus);
 router.delete('/:id', feedbackController.deleteFeedback);
 

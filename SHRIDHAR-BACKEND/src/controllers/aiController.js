@@ -13,6 +13,31 @@ exports.chatWithAI = async (req, res, next) => {
             return next(new AppError('Please provide a message', 400));
         }
 
+        // --- FALLBACK MODE (If API Key is missing) ---
+        if (!process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY === 'your_openrouter_key_here') {
+            console.warn('AI Chat: OPENROUTER_API_KEY missing. Using fallback response.');
+
+            // Simple keyword-based fallback logic
+            let fallbackReply = "I'm currently in demo mode as my brain is being upgraded! 🧠\n\nFor now, I can tell you that Reservice offers top-notch home services including:\n- 🔧 Home Repairs\n- 🧹 Deep Cleaning\n- 💄 Beauty Services\n- 🚚 Transport & Shifting\n\nPlease browse our 'Services' tab to book a professional!";
+
+            const lowerMsg = message.toLowerCase();
+            if (lowerMsg.includes('price') || lowerMsg.includes('cost')) {
+                fallbackReply = "Our pricing is very competitive! \n- Cleaning starts at ₹499\n- AC Service at ₹599\n- Haircuts at ₹299\n\nCheck the specific service page for exact rates.";
+            } else if (lowerMsg.includes('hello') || lowerMsg.includes('hi')) {
+                fallbackReply = "Hello there! 👋 How can I help you with your home service needs today?";
+            } else if (lowerMsg.includes('contact') || lowerMsg.includes('support')) {
+                fallbackReply = "You can reach our support team at support@reservice.com or call us at +91 98765 43210.";
+            }
+
+            // Simulate network delay for realism
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            return res.status(200).json({
+                status: 'success',
+                data: { reply: fallbackReply }
+            });
+        }
+
         const systemPrompt = `You are the Reservice AI Assistant, a professional and helpful expert on home services in India. 
         Reservice offers:
         - Home Repairs: Plumbing, Electrical, AC Repair, Carpentry.
@@ -39,7 +64,7 @@ exports.chatWithAI = async (req, res, next) => {
         ];
 
         const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-            model: 'openrouter/free', 
+            model: 'openrouter/free',
             messages: messages,
             temperature: 0.7,
             max_tokens: 500
@@ -62,6 +87,12 @@ exports.chatWithAI = async (req, res, next) => {
         });
     } catch (error) {
         console.error('AI Chat Error:', error.response?.data || error.message);
-        next(new AppError('Failed to get a response from AI service', 500));
+        // Graceful error fallback
+        res.status(200).json({
+            status: 'success',
+            data: {
+                reply: "I'm having a bit of trouble connecting to the cloud right now. 🌧️\n\nPlease try again in a moment, or browse our services manually."
+            }
+        });
     }
 };

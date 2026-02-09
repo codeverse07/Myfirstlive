@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Shridhar Expert</string>
+    <string name="title_activity_main">Shridhar Expert</string>
+    <string name="package_name">com.shridhar.expert</string>
+    <string name="custom_url_scheme">com.shridhar.expert</string>
+</resources>

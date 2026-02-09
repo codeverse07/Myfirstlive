@@ -10,7 +10,7 @@ const ServiceCard = ({ service, onBook, variant = 'user', onEdit, onDelete }) =>
         return (
             <div className="group bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-4 hover:shadow-lg transition-all duration-300">
                 <div className="flex gap-4">
-                    <img src={service.image} className="w-20 h-20 rounded-2xl object-cover" />
+                    <img src={service.headerImage || service.image || 'https://images.unsplash.com/photo-1581578731117-104f2a41d58e?auto=format&fit=crop&q=80'} className="w-20 h-20 rounded-2xl object-cover" />
                     <div className="flex-1">
                         <h3 className="font-bold text-slate-900 dark:text-white">{service.title}</h3>
                         <p className="text-xs text-slate-500 line-clamp-1">{service.description}</p>
@@ -35,7 +35,7 @@ const ServiceCard = ({ service, onBook, variant = 'user', onEdit, onDelete }) =>
             {/* Image Section */}
             <div className="relative h-56 overflow-hidden">
                 <img
-                    src={service.image}
+                    src={service.headerImage || service.image || 'https://images.unsplash.com/photo-1581578731117-104f2a41d58e?auto=format&fit=crop&q=80'}
                     alt={service.title}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                 />
@@ -60,7 +60,6 @@ const ServiceCard = ({ service, onBook, variant = 'user', onEdit, onDelete }) =>
                 <div className="absolute bottom-4 right-4">
                     <div className="flex items-center gap-1 bg-emerald-600 text-white px-2 py-0.5 rounded-lg text-[10px] font-black shadow-lg">
                         {service.rating || '4.8'}
-                        <Star className="w-2.5 h-2.5 fill-white" />
                     </div>
                 </div>
             </div>

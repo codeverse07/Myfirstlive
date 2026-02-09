@@ -1,6 +1,8 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import client from '../api/client';
 import { useUser } from './UserContext';
+import { useSocket } from './SocketContext';
+import { useSound } from './SoundContext';
 import { toast } from 'react-hot-toast';
 
 const BookingContext = createContext();
@@ -8,20 +10,60 @@ const BookingContext = createContext();
 export const useBookings = () => useContext(BookingContext);
 
 export const BookingProvider = ({ children }) => {
-    const { isAuthenticated } = useUser();
+    const { isAuthenticated, user } = useUser();
+    const { socket } = useSocket();
     const [bookings, setBookings] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [pendingReviews, setPendingReviews] = useState([]);
 
-    // Auto-refresh for new bookings/status updates
+    // Auto-refresh for new bookings/status updates (Fallback polling)
     useEffect(() => {
         let interval;
         if (isAuthenticated) {
             fetchBookings();
-            interval = setInterval(fetchBookings, 30000); // Poll every 30s
+            interval = setInterval(fetchBookings, 60000); // Poll every 60s as backup
         }
         return () => clearInterval(interval);
     }, [isAuthenticated]);
+
+    // Update Pending Reviews whenever bookings change
+    useEffect(() => {
+        if (bookings.length > 0 && user?.role === 'USER') {
+            const pending = bookings.filter(b => b.status === 'Completed' && !b.review);
+            setPendingReviews(pending);
+        } else {
+            setPendingReviews([]);
+        }
+    }, [bookings, user?.role]);
+
+    const { playNotificationSound } = useSound();
+
+    // REAL-TIME UPDATES
+    useEffect(() => {
+        if (!socket || !isAuthenticated) return;
+
+        const handleBookingCreated = (newBooking) => {
+            playNotificationSound();
+            setBookings(prev => [transformBooking(newBooking), ...prev]);
+        };
+
+        const handleBookingUpdated = (updatedBooking) => {
+            playNotificationSound();
+            setBookings(prev => prev.map(b => (b.id === updatedBooking._id || b.id === updatedBooking.id) ? transformBooking(updatedBooking) : b));
+
+            // Show toast if status changed
+            toast.success(`Booking status updated to ${updatedBooking.status}`);
+        };
+
+        socket.on('booking:created', handleBookingCreated);
+        socket.on('booking:updated', handleBookingUpdated);
+
+        return () => {
+            socket.off('booking:created', handleBookingCreated);
+            socket.off('booking:updated', handleBookingUpdated);
+        };
+    }, [socket, isAuthenticated, playNotificationSound]);
 
     // Helper to transform backend booking
     const transformBooking = (doc) => {
@@ -196,8 +238,49 @@ export const BookingProvider = ({ children }) => {
         }
     };
 
+    const submitReview = async (reviewData) => {
+        try {
+            const { bookingId, rating, technicianRating, review } = reviewData;
+
+            // 1. Send to Backend
+            const res = await client.post(`/bookings/${bookingId}/reviews`, {
+                rating,
+                technicianRating,
+                review
+            });
+
+            if (res.data.status === 'success') {
+                toast.success('Review submitted successfully! 🎉');
+
+                // 2. Update Local State (Remove from pending, add review to booking)
+                setBookings(prev => prev.map(b => {
+                    if (b.id === bookingId) {
+                        return {
+                            ...b,
+                            review: {
+                                id: res.data.data.review._id,
+                                rating,
+                                comment: review
+                            }
+                        }; // Adding review object marks it as reviewed
+                    }
+                    return b;
+                }));
+
+                // 3. Remove from pending list explicitly
+                setPendingReviews(prev => prev.filter(b => b.id !== bookingId));
+
+                return res.data;
+            }
+        } catch (err) {
+            console.error("Review submission failed", err);
+            toast.error(err.response?.data?.message || "Failed to submit review");
+            throw err;
+        }
+    };
+
     return (
-        <BookingContext.Provider value={{ bookings, isLoading, error, fetchBookings, addBooking, cancelBooking, updateBookingStatus, processPayment }}>
+        <BookingContext.Provider value={{ bookings, isLoading, error, fetchBookings, addBooking, cancelBooking, updateBookingStatus, processPayment, pendingReviews, submitReview }}>
             {children}
         </BookingContext.Provider>
     );

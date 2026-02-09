@@ -53,4 +53,10 @@ router.patch(
     technicianController.updateStatus
 );
 
+router.patch(
+    '/request-reset',
+    authMiddleware.restrictTo('TECHNICIAN'),
+    technicianController.requestPasswordReset
+);
+
 module.exports = router;

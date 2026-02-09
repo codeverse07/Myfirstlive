@@ -6,11 +6,9 @@ export const ThemeProvider = ({ children }) => {
     const [theme, setTheme] = useState(() => {
         if (typeof window !== 'undefined') {
             const savedTheme = localStorage.getItem('theme');
-            if (savedTheme) {
-                return savedTheme;
-            }
-            // User requested default to be light, ignoring system preference for now
-            return 'light';
+            // Default to 'light' if no preference saved, or if system preference is dark but we want light default
+            if (savedTheme) return savedTheme;
+            return 'light'; // Force default light
         }
         return 'light';
     });

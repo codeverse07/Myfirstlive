@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { categories as initialCategories } from '../data/mockData';
 import { useUser } from './UserContext';
 import { useSocket } from './SocketContext';
+import { useSound } from './SoundContext';
 import client from '../api/client';
 import { toast } from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
@@ -22,6 +23,9 @@ export const AdminProvider = ({ children }) => {
         return savedSettings ? JSON.parse(savedSettings) : {
             showWallet: false,
             showReferralBanner: false,
+            maintenanceMode: false,
+            maintenanceMessage: 'Our server is currently undergoing maintenance. We will be back soon!',
+            maintenanceEndTime: null,
             adminEmail: 'admin@reservice.com',
             adminPassword: 'admin123'
         };
@@ -35,6 +39,7 @@ export const AdminProvider = ({ children }) => {
     const [reasons, setReasons] = useState([]);
     const [feedbacks, setFeedbacks] = useState([]);
     const [reviews, setReviews] = useState([]);
+    const [heroes, setHeroes] = useState([]);
     const [dashboardStats, setDashboardStats] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -121,7 +126,6 @@ export const AdminProvider = ({ children }) => {
         }
 
         setIsLoading(true);
-        console.log('[DEBUG] AdminContext: Initiating parallel data fetch...');
 
         const endpoints = [
             { key: 'stats', url: '/admin/dashboard-stats', setter: setDashboardStats },
@@ -134,6 +138,7 @@ export const AdminProvider = ({ children }) => {
             { key: 'settings', url: '/admin/settings', setter: setAppSettings, transform: (d) => d.data.settings },
             { key: 'feedbacks', url: '/feedbacks', setter: setFeedbacks, transform: (d) => d.data.feedbacks },
             { key: 'reviews', url: '/reviews/all', setter: setReviews, transform: (d) => d.data.reviews },
+            { key: 'heroes', url: '/heroes', setter: setHeroes, transform: (d) => d.data.heroes },
         ];
 
         try {
@@ -145,20 +150,25 @@ export const AdminProvider = ({ children }) => {
                 const ep = endpoints[index];
                 if (result.status === 'fulfilled') {
                     const data = result.value.data;
-                    if (ep.key === 'categories') {
-                        console.log('[DEBUG] AdminContext: Fetched Categories:', data.data?.categories?.length);
-                    }
                     if (ep.transform) {
                         ep.setter(ep.transform(data));
                     } else {
                         ep.setter(data.data || data);
                     }
                 } else {
-                    console.warn(`[DEBUG] AdminContext: Failed to load ${ep.key}`, result.reason.response?.status);
+                    const status = result.reason.response?.status;
+                    const message = result.reason.message;
+                    console.warn(`Failed to load ${ep.key}`, status);
+                    if (status === 401 || status === 403) {
+                        toast.error(`Access Denied: ${ep.key} (${status})`);
+                    } else {
+                        toast.error(`Failed to load ${ep.key}: ${message}`);
+                    }
                 }
             });
         } catch (error) {
-            console.error('[DEBUG] AdminContext: Critical fetch error', error);
+            console.error('Critical fetch error', error);
+            toast.error("Critical error loading admin data");
         } finally {
             setIsLoading(false);
         }
@@ -196,9 +206,10 @@ export const AdminProvider = ({ children }) => {
         localStorage.setItem('app_settings', JSON.stringify(appSettings));
     }, [appSettings]);
 
-    // Unified Login Wrapper
+    // Unified Login Wrapper (Updates to match UserContext signature)
     const login = async (email, password) => {
-        const res = await userLogin(email, password);
+        // Pass 'bypass-token' for recaptcha and 'ADMIN' as role
+        const res = await userLogin(email, password, 'bypass-token', 'ADMIN');
         if (res.success && res.user.role === 'ADMIN') {
             return true;
         } else if (res.success) {
@@ -221,13 +232,24 @@ export const AdminProvider = ({ children }) => {
         }
     };
 
+    const updateSettings = async (settings) => {
+        try {
+            const res = await client.patch('/admin/settings', settings);
+            if (res.data.status === 'success') {
+                setAppSettings(prev => ({ ...prev, ...res.data.data.settings }));
+                toast.success("Settings updated");
+            }
+        } catch (err) {
+            console.error("Failed to update settings", err);
+            toast.error("Failed to sync settings");
+        }
+    };
+
     const addCategory = async (categoryData) => {
         try {
-            console.log('[DEBUG] AdminContext: Sending category data:', [...categoryData.entries()]);
             const res = await client.post('/categories', categoryData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-            console.log('[DEBUG] AdminContext: Add Category Response:', res.data);
             if (res.data.status === 'success') {
                 // Force refresh to get merged fields and correct order
                 await fetchData();
@@ -416,16 +438,27 @@ export const AdminProvider = ({ children }) => {
 
     const addTechnician = async (techData) => {
         try {
-            const payload = {
-                name: techData.name,
-                email: techData.email,
-                password: techData.password || 'password123',
-                phone: techData.phone,
-                bio: techData.bio,
-                skills: techData.skills ? techData.skills.split(',').map(s => s.trim()) : []
-            };
+            const formData = new FormData();
+            formData.append('name', techData.name);
+            formData.append('email', techData.email);
+            formData.append('password', techData.password || 'password123');
+            formData.append('phone', techData.phone);
+            formData.append('bio', techData.bio || '');
 
-            const res = await client.post('/admin/technicians', payload);
+            if (techData.agreementFile) {
+                formData.append('agreement', techData.agreementFile);
+            }
+
+            if (techData.skills) {
+                const skillsArray = typeof techData.skills === 'string'
+                    ? techData.skills.split(',').map(s => s.trim())
+                    : techData.skills;
+                skillsArray.forEach(skill => formData.append('skills', skill));
+            }
+
+            const res = await client.post('/admin/technicians', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
             if (res.data.status === 'success') {
                 const newTechnician = res.data.data.profile;
                 newTechnician.user = res.data.data.user;
@@ -438,13 +471,11 @@ export const AdminProvider = ({ children }) => {
         }
     };
 
-    const approveTechnician = async (id) => {
+    const approveTechnician = async (id, categoryIds, serviceIds) => {
         try {
-            await client.patch(`/admin/technicians/${id}/approve`);
-            setTechnicians(prev => prev.map(t =>
-                t._id === id || t.id === id ? { ...t, documents: { ...t.documents, verificationStatus: 'VERIFIED' } } : t
-            ));
-            toast.success("Technician approved");
+            await client.patch(`/admin/technicians/${id}/approve`, { categoryIds, serviceIds });
+            await fetchData(); // Force refresh to get populated categories/services
+            toast.success("Technician approved and roles assigned");
         } catch (err) {
             console.error("Failed to approve technician", err);
             toast.error(err.response?.data?.message || err.message);
@@ -472,6 +503,21 @@ export const AdminProvider = ({ children }) => {
         } catch (err) {
             console.error("Failed to delete technician", err);
             toast.error(err.response?.data?.message || err.message);
+        }
+    };
+
+    const resetTechnicianPassword = async (id, newPassword) => {
+        try {
+            const res = await client.patch(`/admin/technicians/${id}/reset-password`, { password: newPassword });
+            if (res.data.status === 'success') {
+                toast.success("Password reset successfully");
+                await fetchData(); // Refresh to clear request flags in UI
+                return { success: true };
+            }
+        } catch (err) {
+            console.error("Failed to reset password", err);
+            toast.error(err.response?.data?.message || "Reset failed");
+            return { success: false };
         }
     };
 
@@ -578,6 +624,257 @@ export const AdminProvider = ({ children }) => {
         }
     };
 
+    const addHero = async (heroData) => {
+        try {
+            const res = await client.post('/heroes', heroData);
+            if (res.data.status === 'success') {
+                setHeroes(prev => [...prev, res.data.data.hero]);
+                toast.success("Hero slide added");
+                return { success: true };
+            }
+        } catch (err) {
+            console.error("Failed to add hero", err);
+            toast.error(err.response?.data?.message || "Failed to add hero");
+            return { success: false };
+        }
+    };
+
+    const updateHero = async (id, heroData) => {
+        try {
+            const res = await client.patch(`/heroes/${id}`, heroData);
+            if (res.data.status === 'success') {
+                setHeroes(prev => prev.map(hero => hero._id === id ? res.data.data.hero : hero));
+                toast.success("Hero updated");
+                return { success: true };
+            }
+        } catch (err) {
+            console.error("Failed to update hero", err);
+            toast.error(err.response?.data?.message || "Update failed");
+            return { success: false };
+        }
+    };
+
+    const deleteHero = async (id) => {
+        try {
+            await client.delete(`/heroes/${id}`);
+            setHeroes(prev => prev.filter(h => h._id !== id));
+            toast.success("Hero removed");
+            return { success: true };
+        } catch (err) {
+            console.error("Failed to delete hero", err);
+            toast.error("Delete failed");
+            return { success: false };
+        }
+    };
+
+    const { playNotificationSound } = useSound();
+
+    // Real-time Updates
+    useEffect(() => {
+        if (!socket || !isAdminAuthenticated) return;
+
+        console.log('Admin Socket Listening...');
+
+        // BOOKINGS
+        const handleBookingCreated = (newBooking) => {
+            console.log('Socket: Booking Created', newBooking._id);
+            playNotificationSound();
+            toast.success(`New Booking: ${newBooking.category?.name || 'Service'}`);
+            setAllBookings(prev => [newBooking, ...prev]);
+            fetchData(); // Refresh stats and other lists
+        };
+
+        const handleBookingUpdated = (updatedBooking) => {
+            console.log('Socket: Booking Updated', updatedBooking._id);
+            setAllBookings(prev => prev.map(b => (b._id === updatedBooking._id || b.id === updatedBooking._id) ? updatedBooking : b));
+            fetchData(); // Refresh stats
+        };
+
+        // TECHNICIANS
+        const handleTechnicianCreated = (newTech) => {
+            console.log('Socket: Technician Created', newTech._id);
+            playNotificationSound();
+            setTechnicians(prev => [newTech, ...prev]);
+            fetchData();
+        };
+
+        const handleTechnicianUpdated = (updatedTech) => {
+            console.log('Socket: Technician Updated', updatedTech._id);
+            setTechnicians(prev => prev.map(t => (t._id === updatedTech._id || t.id === updatedTech._id) ? updatedTech : t));
+            fetchData();
+        };
+
+        const handleTechnicianDeleted = ({ id }) => {
+            console.log('Socket: Technician Deleted', id);
+            setTechnicians(prev => prev.filter(t => t._id !== id && t.id !== id));
+            fetchData();
+        };
+
+        const handleTechnicianOnline = ({ userId, technicianId }) => {
+            console.log('Socket: Tech Online', userId || technicianId);
+            setTechnicians(prev => prev.map(t =>
+                (t.user?._id === userId || t.user === userId || t._id === technicianId || t.id === technicianId)
+                    ? { ...t, isOnline: true } : t
+            ));
+        };
+
+        const handleTechnicianOffline = ({ userId, technicianId }) => {
+            console.log('Socket: Tech Offline', userId || technicianId);
+            setTechnicians(prev => prev.map(t =>
+                (t.user?._id === userId || t.user === userId || t._id === technicianId || t.id === technicianId)
+                    ? { ...t, isOnline: false } : t
+            ));
+        };
+
+        // USERS
+        const handleUserUpdated = (updatedUser) => {
+            console.log('Socket: User Updated', updatedUser._id);
+            setUsers(prev => prev.map(u => (u._id === updatedUser._id || u.id === updatedUser._id) ? updatedUser : u));
+            // Also update technician list if this user is a technician
+            setTechnicians(prev => prev.map(t =>
+                (t.user?._id === updatedUser._id || t.user === updatedUser._id)
+                    ? { ...t, user: updatedUser } : t
+            ));
+        };
+
+        // SERVICES
+        const handleServiceCreated = (newService) => {
+            console.log('Socket: Service Created', newService._id);
+            setServices(prev => [...prev, transformService(newService)]);
+        };
+
+        const handleServiceUpdated = (updatedService) => {
+            console.log('Socket: Service Updated', updatedService._id);
+            setServices(prev => prev.map(s => (s._id === updatedService._id || s.id === updatedService._id) ? transformService(updatedService) : s));
+        };
+
+        const handleServiceDeleted = ({ id }) => {
+            console.log('Socket: Service Deleted', id);
+            setServices(prev => prev.filter(s => s._id !== id && s.id !== id));
+        };
+
+        // CATEGORIES
+        const handleCategoryCreated = (newCat) => {
+            console.log('Socket: Category Created', newCat._id);
+            setCategories(prev => [...prev, newCat]);
+        };
+
+        const handleCategoryUpdated = (updatedCat) => {
+            console.log('Socket: Category Updated', updatedCat._id);
+            setCategories(prev => prev.map(c => (c._id === updatedCat._id || c.id === updatedCat._id) ? updatedCat : c));
+        };
+
+        const handleCategoryDeleted = ({ id }) => {
+            console.log('Socket: Category Deleted', id);
+            setCategories(prev => prev.filter(c => c._id !== id && c.id !== id));
+        };
+
+        // FEEDBACK
+        const handleFeedbackCreated = (newFeedback) => {
+            console.log('Socket: Feedback Created', newFeedback._id);
+            playNotificationSound();
+            setFeedbacks(prev => [newFeedback, ...prev]);
+        };
+
+        const handleFeedbackUpdated = (updatedFeedback) => {
+            console.log('Socket: Feedback Updated', updatedFeedback._id);
+            setFeedbacks(prev => prev.map(f => (f._id === updatedFeedback._id || f.id === updatedFeedback._id) ? updatedFeedback : f));
+        };
+
+        const handleFeedbackDeleted = ({ id }) => {
+            console.log('Socket: Feedback Deleted', id);
+            setFeedbacks(prev => prev.filter(f => f._id !== id && f.id !== id));
+        };
+
+        // REVIEWS
+        const handleReviewCreated = (newReview) => {
+            console.log('Socket: Review Created', newReview._id);
+            playNotificationSound();
+            setReviews(prev => [newReview, ...prev]);
+            fetchData(); // Stats change
+        };
+
+        const handleReviewUpdated = (updatedReview) => {
+            console.log('Socket: Review Updated', updatedReview._id);
+            setReviews(prev => prev.map(r => (r._id === updatedReview._id || r.id === updatedReview._id) ? updatedReview : r));
+            fetchData();
+        };
+
+        const handleReviewDeleted = ({ id }) => {
+            console.log('Socket: Review Deleted', id);
+            setReviews(prev => prev.filter(r => r._id !== id && r.id !== id));
+            fetchData();
+        };
+
+        // REASONS
+        const handleReasonCreated = (newReason) => {
+            console.log('Socket: Reason Created', newReason._id);
+            setReasons(prev => [...prev, newReason]);
+        };
+
+        const handleReasonDeleted = ({ id }) => {
+            console.log('Socket: Reason Deleted', id);
+            setReasons(prev => prev.filter(r => r._id !== id && r.id !== id));
+        };
+
+        // SETTINGS
+        const handleSettingsUpdated = (updatedSettings) => {
+            console.log('Socket: Settings Updated');
+            setAppSettings(prev => ({ ...prev, ...updatedSettings }));
+            toast.success("System settings updated externally");
+        };
+
+        socket.on('booking:created', handleBookingCreated);
+        socket.on('booking:updated', handleBookingUpdated);
+        socket.on('technician:created', handleTechnicianCreated);
+        socket.on('technician:updated', handleTechnicianUpdated);
+        socket.on('technician:deleted', handleTechnicianDeleted);
+        socket.on('technician:online', handleTechnicianOnline);
+        socket.on('technician:offline', handleTechnicianOffline);
+        socket.on('user:updated', handleUserUpdated);
+        socket.on('service:created', handleServiceCreated);
+        socket.on('service:updated', handleServiceUpdated);
+        socket.on('service:deleted', handleServiceDeleted);
+        socket.on('category:created', handleCategoryCreated);
+        socket.on('category:updated', handleCategoryUpdated);
+        socket.on('category:deleted', handleCategoryDeleted);
+        socket.on('feedback:created', handleFeedbackCreated);
+        socket.on('feedback:updated', handleFeedbackUpdated);
+        socket.on('feedback:deleted', handleFeedbackDeleted);
+        socket.on('review:created', handleReviewCreated);
+        socket.on('review:updated', handleReviewUpdated);
+        socket.on('review:deleted', handleReviewDeleted);
+        socket.on('reason:created', handleReasonCreated);
+        socket.on('reason:deleted', handleReasonDeleted);
+        socket.on('settings:updated', handleSettingsUpdated);
+
+        return () => {
+            socket.off('booking:created', handleBookingCreated);
+            socket.off('booking:updated', handleBookingUpdated);
+            socket.off('technician:created', handleTechnicianCreated);
+            socket.off('technician:updated', handleTechnicianUpdated);
+            socket.off('technician:deleted', handleTechnicianDeleted);
+            socket.off('technician:online', handleTechnicianOnline);
+            socket.off('technician:offline', handleTechnicianOffline);
+            socket.off('user:updated', handleUserUpdated);
+            socket.off('service:created', handleServiceCreated);
+            socket.off('service:updated', handleServiceUpdated);
+            socket.off('service:deleted', handleServiceDeleted);
+            socket.off('category:created', handleCategoryCreated);
+            socket.off('category:updated', handleCategoryUpdated);
+            socket.off('category:deleted', handleCategoryDeleted);
+            socket.off('feedback:created', handleFeedbackCreated);
+            socket.off('feedback:updated', handleFeedbackUpdated);
+            socket.off('feedback:deleted', handleFeedbackDeleted);
+            socket.off('review:created', handleReviewCreated);
+            socket.off('review:updated', handleReviewUpdated);
+            socket.off('review:deleted', handleReviewDeleted);
+            socket.off('reason:created', handleReasonCreated);
+            socket.off('reason:deleted', handleReasonDeleted);
+            socket.off('settings:updated', handleSettingsUpdated);
+        };
+    }, [socket, isAdminAuthenticated, playNotificationSound]);
+
     return (
         <AdminContext.Provider value={{
             isAdminAuthenticated,
@@ -605,6 +902,7 @@ export const AdminProvider = ({ children }) => {
             approveTechnician,
             rejectTechnician,
             deleteTechnician,
+            resetTechnicianPassword,
             users,
             toggleUserStatus,
             allBookings,
@@ -617,6 +915,11 @@ export const AdminProvider = ({ children }) => {
             cancelBooking,
             deleteReview,
             deleteFeedback,
+            updateSettings,
+            heroes,
+            addHero,
+            updateHero,
+            deleteHero,
             refreshData: fetchData
         }}>
             {children}

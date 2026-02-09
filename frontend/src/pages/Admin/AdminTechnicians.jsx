@@ -1,13 +1,13 @@
 import React from 'react';
 import { useAdmin } from '../../context/AdminContext';
-import { Users, Plus, Star, Phone, Mail, X, Check, Loader, Shield, Image as ImageIcon, Search, Filter, Ban, CheckCircle2, MoreVertical, ExternalLink, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, Plus, Star, Phone, Mail, X, Check, Loader, Shield, Image as ImageIcon, Search, Filter, Ban, CheckCircle2, MoreVertical, ExternalLink, AlertCircle, ChevronLeft, ChevronRight, Key } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import client from '../../api/client';
 
 const AdminTechnicians = () => {
-    const { technicians: allTechnicians, toggleUserStatus, addTechnician, categories, deleteTechnician, isLoading, refreshData, updateTechnicianProfile } = useAdmin();
+    const { technicians: allTechnicians, toggleUserStatus, addTechnician, categories, services, deleteTechnician, isLoading, refreshData, updateTechnicianProfile, approveTechnician, resetTechnicianPassword } = useAdmin();
     const navigate = useNavigate();
 
     const [activeTab, setActiveTab] = React.useState('verified'); // 'verified' or 'pending'
@@ -17,11 +17,15 @@ const AdminTechnicians = () => {
     const [viewingDocsBy, setViewingDocsBy] = React.useState(null);
     const [actionLoading, setActionLoading] = React.useState({});
     const [searchQuery, setSearchQuery] = React.useState('');
-    const [newTech, setNewTech] = React.useState({ name: '', email: '', phone: '', bio: '', skills: '' });
+    const [newTech, setNewTech] = React.useState({ name: '', email: '', phone: '', bio: '', skills: '', password: '', agreementFile: null });
 
     // Profile Editing State
     const [isEditingProfile, setIsEditingProfile] = React.useState(false);
-    const [editData, setEditData] = React.useState({ bio: '', skills: '', employeeId: '', name: '', phone: '', categories: [] });
+    const [editData, setEditData] = React.useState({ bio: '', skills: '', employeeId: '', name: '', phone: '', categories: [], services: [] });
+
+    // Password Reset Modal State
+    const [resetModalOpen, setResetModalOpen] = React.useState(false);
+    const [resetData, setResetData] = React.useState({ techId: null, techName: '', newPassword: '', confirmPassword: '' });
 
     const handleSaveProfile = async () => {
         if (!viewingDocsBy) return;
@@ -38,6 +42,12 @@ const AdminTechnicians = () => {
             if (editData.categories && editData.categories.length > 0) {
                 editData.categories.forEach(catId => {
                     formData.append('categories', catId);
+                });
+            }
+
+            if (editData.services && editData.services.length > 0) {
+                editData.services.forEach(serviceId => {
+                    formData.append('services', serviceId);
                 });
             }
 
@@ -71,10 +81,10 @@ const AdminTechnicians = () => {
             // Tab Filter
             if (activeTab === 'verified') {
                 if (status !== 'VERIFIED') return false;
-            } else {
-                // Pending tab: shows PENDING. (Rejected? maybe separate tab or include here)
-                // For now, let's show PENDING.
+            } else if (activeTab === 'pending') {
                 if (status !== 'PENDING') return false;
+            } else if (activeTab === 'resets') {
+                if (!tech.user?.passwordResetRequested) return false;
             }
 
             // Search Filter
@@ -119,7 +129,7 @@ const AdminTechnicians = () => {
         try {
             await addTechnician(newTech);
             setIsAddingTech(false);
-            setNewTech({ name: '', email: '', phone: '', bio: '', skills: '' });
+            setNewTech({ name: '', email: '', phone: '', bio: '', skills: '', password: '', agreementFile: null });
             toast.success("Expert profile created");
         } catch (err) {
             toast.error("Failed to create profile");
@@ -166,6 +176,42 @@ const AdminTechnicians = () => {
             setActionLoading(prev => ({ ...prev, [techId]: false }));
         }
     };
+    const handleOpenResetModal = (tech) => {
+        setResetData({
+            techId: tech.user?._id || tech.user?.id,
+            techName: tech.user?.name,
+            newPassword: '',
+            confirmPassword: ''
+        });
+        setResetModalOpen(true);
+    };
+
+    const handleSubmitReset = async () => {
+        if (!resetData.newPassword || !resetData.confirmPassword) {
+            toast.error("Please fill in both password fields");
+            return;
+        }
+        if (resetData.newPassword !== resetData.confirmPassword) {
+            toast.error("Passwords do not match");
+            return;
+        }
+        if (resetData.newPassword.length < 8) {
+            toast.error("Password must be at least 8 characters");
+            return;
+        }
+
+        setActionLoading(prev => ({ ...prev, resetPass: true }));
+        try {
+            await resetTechnicianPassword(resetData.techId, resetData.newPassword);
+            setResetModalOpen(false);
+            toast.success("Password reset successfully");
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to reset password");
+        } finally {
+            setActionLoading(prev => ({ ...prev, resetPass: false }));
+        }
+    };
 
     const handleReject = async (techId) => {
         if (!window.confirm("Reject this application?")) return;
@@ -210,7 +256,7 @@ const AdminTechnicians = () => {
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                         <input
                             type="text"
-                            placeholder="Search experts..."
+                            placeholder="Search professionals..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="pl-12 pr-6 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-bold outline-none focus:ring-4 focus:ring-indigo-500/10 w-full md:w-64 transition-all"
@@ -230,18 +276,24 @@ const AdminTechnicians = () => {
                 <div className="flex items-center gap-2 p-1.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 w-fit shadow-sm">
                     {[
                         { id: 'verified', label: 'Verified Partners', icon: CheckCircle2 },
-                        { id: 'pending', label: 'Pending Approval', icon: AlertCircle }
+                        { id: 'pending', label: 'Pending Approval', icon: AlertCircle },
+                        { id: 'resets', label: 'Reset Requests', icon: Key }
                     ].map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => { setActiveTab(tab.id); setPage(1); }}
-                            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === tab.id
+                            className={`relative px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === tab.id
                                 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
                                 : 'text-slate-400 hover:text-slate-600'
                                 }`}
                         >
                             <tab.icon className="w-3.5 h-3.5" />
                             {tab.label}
+                            {tab.id === 'resets' && allTechnicians?.filter(t => t.user?.passwordResetRequested).length > 0 && (
+                                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[8px] font-black text-white ring-2 ring-white shadow-sm">
+                                    {allTechnicians?.filter(t => t.user?.passwordResetRequested).length}
+                                </span>
+                            )}
                         </button>
                     ))}
                 </div>
@@ -269,8 +321,8 @@ const AdminTechnicians = () => {
                                 onChange={(e) => { setSelectedCategory(e.target.value); setPage(1); }}
                                 className="pl-10 pr-8 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none focus:ring-4 focus:ring-indigo-500/10 appearance-none cursor-pointer"
                             >
-                                <option value="">All Categories</option>
-                                <option value="all">All Categories</option>
+                                <option value="">Filter by Role</option>
+                                <option value="all">All Roles</option>
                                 {categories.map(cat => (
                                     <option key={cat._id || cat.id} value={cat._id || cat.id}>{cat.name}</option>
                                 ))}
@@ -315,6 +367,11 @@ const AdminTechnicians = () => {
                                     <div className="flex items-center gap-2">
                                         <h4 className="text-base font-black text-slate-900 dark:text-white leading-tight">{tech.user?.name || 'Partner'}</h4>
                                         {activeTab === 'verified' && <OnlineBadge isOnline={tech.isOnline} />}
+                                        {tech.user?.passwordResetRequested && (
+                                            <span className="px-2 py-0.5 bg-red-100 text-red-600 text-[8px] font-black uppercase tracking-tighter rounded-md animate-pulse">
+                                                Reset Requested
+                                            </span>
+                                        )}
                                     </div>
 
                                     <div className="flex flex-wrap items-center gap-3 text-[10px] font-bold text-slate-500 uppercase tracking-wide">
@@ -352,6 +409,14 @@ const AdminTechnicians = () => {
 
                             {/* Actions Toolbar */}
                             <div className="flex items-center gap-3 w-full md:w-auto justify-end border-t md:border-t-0 md:border-l border-slate-100 dark:border-slate-800 pt-4 md:pt-0 md:pl-6">
+                                {tech.user?.passwordResetRequested && activeTab === 'resets' && (
+                                    <button
+                                        onClick={() => handleOpenResetModal(tech)}
+                                        className="px-4 py-2.5 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-red-200 hover:bg-red-700"
+                                    >
+                                        Fulfill Reset
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => setViewingDocsBy(tech)}
                                     className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-white border border-transparent hover:border-indigo-200 text-slate-600 dark:text-slate-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
@@ -440,7 +505,86 @@ const AdminTechnicians = () => {
                 </div>
             )}
 
-            {/* Modernized Verification Modal */}
+            {/* Password Reset Modal */}
+            <AnimatePresence>
+                {resetModalOpen && (
+                    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800"
+                        >
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+                                <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                    <Key className="w-5 h-5 text-indigo-500" />
+                                    Reset Password
+                                </h3>
+                                <button
+                                    onClick={() => setResetModalOpen(false)}
+                                    className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"
+                                >
+                                    <X className="w-4 h-4 text-slate-500" />
+                                </button>
+                            </div>
+
+                            <div className="p-8 space-y-6">
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-500/10">
+                                        <p className="text-xs text-indigo-600 dark:text-indigo-400 font-bold mb-1">RESETTING PASSWORD FOR</p>
+                                        <p className="text-base font-black text-slate-900 dark:text-white">{resetData.techName}</p>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black uppercase text-slate-500 tracking-wider">New Password</label>
+                                        <input
+                                            type="text"
+                                            placeholder="Enter new password"
+                                            value={resetData.newPassword}
+                                            onChange={(e) => setResetData(prev => ({ ...prev, newPassword: e.target.value }))}
+                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-black uppercase text-slate-500 tracking-wider">Confirm Password</label>
+                                        <input
+                                            type="text"
+                                            placeholder="Confirm new password"
+                                            value={resetData.confirmPassword}
+                                            onChange={(e) => setResetData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                                            className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-xl px-4 py-3 outline-none focus:ring-2 transition-all font-medium ${resetData.confirmPassword && resetData.newPassword !== resetData.confirmPassword
+                                                ? 'border-red-300 focus:ring-red-500/20'
+                                                : 'border-slate-200 dark:border-slate-700 focus:ring-indigo-500/20'
+                                                }`}
+                                        />
+                                        {resetData.confirmPassword && resetData.newPassword !== resetData.confirmPassword && (
+                                            <p className="text-[10px] font-bold text-red-500">Passwords do not match</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-end gap-3 pt-2">
+                                    <button
+                                        onClick={() => setResetModalOpen(false)}
+                                        className="px-6 py-3 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleSubmitReset}
+                                        disabled={actionLoading.resetPass || !resetData.newPassword || !resetData.confirmPassword || resetData.newPassword !== resetData.confirmPassword}
+                                        className="px-6 py-3 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                                    >
+                                        {actionLoading.resetPass ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                                        Update Password
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
             <AnimatePresence>
                 {viewingDocsBy && (
                     <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-100 flex items-center justify-center p-4">
@@ -506,7 +650,8 @@ const AdminTechnicians = () => {
                                                     name: viewingDocsBy.user?.name || '',
                                                     phone: viewingDocsBy.user?.phone || '',
                                                     address: viewingDocsBy.location?.address || '',
-                                                    categories: viewingDocsBy.categories?.map(c => c._id || c.id) || []
+                                                    categories: viewingDocsBy.categories?.map(c => c._id || c.id) || [],
+                                                    services: viewingDocsBy.services?.map(s => s._id || s.id) || []
                                                 });
                                             }}
                                             className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-indigo-700 transition-all"
@@ -626,8 +771,8 @@ const AdminTechnicians = () => {
                                 </div>
 
                                 {/* Categories Section */}
-                                <div className="p-8 bg-indigo-50/30 dark:bg-indigo-500/5 rounded-[2rem] border border-indigo-100 dark:border-indigo-500/10">
-                                    <p className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-4">Managed Expertise Categories</p>
+                                <div className="p-8 bg-slate-50/50 dark:bg-slate-800/10 rounded-[2rem] border border-slate-100 dark:border-slate-800">
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">Assigned Expert Categories</p>
                                     {isEditingProfile ? (
                                         <div className="flex flex-wrap gap-2">
                                             {categories?.map(cat => (
@@ -642,8 +787,8 @@ const AdminTechnicians = () => {
                                                         }
                                                     }}
                                                     className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${editData.categories?.includes(cat._id)
-                                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-200 dark:shadow-none'
-                                                            : 'bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800 hover:border-indigo-400'
+                                                        ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-transparent'
+                                                        : 'bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-400'
                                                         }`}
                                                 >
                                                     {cat.name}
@@ -654,12 +799,52 @@ const AdminTechnicians = () => {
                                         <div className="flex flex-wrap gap-2">
                                             {viewingDocsBy.categories?.length > 0 ? (
                                                 viewingDocsBy.categories.map(cat => (
-                                                    <span key={cat._id} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-200 dark:shadow-none">
+                                                    <span key={cat._id} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest">
                                                         {cat.name}
                                                     </span>
                                                 ))
                                             ) : (
-                                                <span className="text-slate-400 italic font-bold">No official categories assigned. Expert currently relies on skills fallback.</span>
+                                                <span className="text-slate-400 italic font-bold">No official categories assigned.</span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Services Section */}
+                                <div className="p-8 bg-indigo-50/30 dark:bg-indigo-500/5 rounded-[2rem] border border-indigo-100 dark:border-indigo-500/10">
+                                    <p className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-4">Official Professional Roles (Services)</p>
+                                    {isEditingProfile ? (
+                                        <div className="flex flex-wrap gap-2">
+                                            {services?.map(service => (
+                                                <button
+                                                    key={service._id}
+                                                    onClick={() => {
+                                                        const current = editData.services || [];
+                                                        if (current.includes(service._id)) {
+                                                            setEditData({ ...editData, services: current.filter(id => id !== service._id) });
+                                                        } else {
+                                                            setEditData({ ...editData, services: [...current, service._id] });
+                                                        }
+                                                    }}
+                                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${editData.services?.includes(service._id)
+                                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-200 dark:shadow-none'
+                                                        : 'bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800 hover:border-indigo-400'
+                                                        }`}
+                                                >
+                                                    {service.title}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-wrap gap-2">
+                                            {viewingDocsBy.services?.length > 0 ? (
+                                                viewingDocsBy.services.map(s => (
+                                                    <span key={s._id} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-200 dark:shadow-none">
+                                                        {s.title}
+                                                    </span>
+                                                ))
+                                            ) : (
+                                                <span className="text-indigo-400 italic font-bold text-[10px] uppercase tracking-widest">No service roles assigned yet.</span>
                                             )}
                                         </div>
                                     )}
@@ -686,16 +871,22 @@ const AdminTechnicians = () => {
                                         </div>
                                         <div className="space-y-4">
                                             <div className="flex justify-between items-end">
-                                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">PAN Card</p>
-                                                {viewingDocsBy.documents?.panCard && (
-                                                    <a href={viewingDocsBy.documents?.panCard} target="_blank" className="text-indigo-500 hover:underline flex items-center gap-1 text-[9px] font-black uppercase"><ExternalLink className="w-3 h-3" /> View</a>
+                                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Legal Agreement</p>
+                                                {viewingDocsBy.documents?.agreement && (
+                                                    <a href={viewingDocsBy.documents?.agreement} target="_blank" className="text-indigo-500 hover:underline flex items-center gap-1 text-[9px] font-black uppercase"><ExternalLink className="w-3 h-3" /> View PDF</a>
                                                 )}
                                             </div>
-                                            <div className="aspect-video rounded-3xl overflow-hidden bg-slate-100 dark:bg-slate-950/50 border-2 border-slate-100 dark:border-slate-800 relative group">
-                                                {viewingDocsBy.documents?.panCard ? (
-                                                    <img src={viewingDocsBy.documents.panCard} className="w-full h-full object-contain" />
+                                            <div className="aspect-video rounded-3xl overflow-hidden bg-slate-100 dark:bg-slate-950/50 border-2 border-slate-100 dark:border-slate-800 relative group flex items-center justify-center">
+                                                {viewingDocsBy.documents?.agreement ? (
+                                                    <div className="flex flex-col items-center gap-2">
+                                                        <Shield className="w-8 h-8 text-indigo-500" />
+                                                        <span className="text-[10px] font-black uppercase text-indigo-500">Agreement Uploaded</span>
+                                                    </div>
                                                 ) : (
-                                                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 gap-2"><ImageIcon className="w-10 h-10" /><span className="text-[10px] font-black uppercase italic">Missing Doc</span></div>
+                                                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 gap-2 font-black uppercase italic text-[10px]">
+                                                        <AlertCircle className="w-8 h-8" />
+                                                        No Agreement
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
@@ -706,7 +897,7 @@ const AdminTechnicians = () => {
                             {/* Category Assignment Section (Only for Pending) */}
                             {viewingDocsBy.documents?.verificationStatus === 'PENDING' && (
                                 <div className="px-10 pb-4">
-                                    <p className="text-xs font-black uppercase text-slate-900 dark:text-white mb-4">Assign Operational Categories</p>
+                                    <p className="text-xs font-black uppercase text-slate-900 dark:text-white mb-4">Select Professional Roles</p>
                                     <div className="flex flex-wrap gap-2">
                                         {categories.map(cat => (
                                             <button
@@ -790,7 +981,31 @@ const AdminTechnicians = () => {
                                         </select>
                                     </div>
 
-                                    <textarea value={newTech.bio} onChange={(e) => setNewTech({ ...newTech, bio: e.target.value })} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-bold text-xs text-slate-900 dark:text-white transition-all shadow-inner" placeholder="Brief Professional Summary" rows={3} />
+                                    <input required type="password" value={newTech.password} onChange={(e) => setNewTech({ ...newTech, password: e.target.value })} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-bold text-xs text-slate-900 dark:text-white transition-all shadow-inner" placeholder="Assign Secure Password" />
+
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Professional Agreement (PDF)</label>
+                                        <div className="relative">
+                                            <input
+                                                type="file"
+                                                accept=".pdf"
+                                                onChange={(e) => setNewTech({ ...newTech, agreementFile: e.target.files[0] })}
+                                                className="hidden"
+                                                id="agreement-upload"
+                                            />
+                                            <label
+                                                htmlFor="agreement-upload"
+                                                className={`w-full p-4 bg-slate-50 dark:bg-slate-800 border-2 border-dashed rounded-2xl flex items-center justify-center gap-2 cursor-pointer transition-all ${newTech.agreementFile ? 'border-indigo-500 text-indigo-500' : 'border-slate-200 dark:border-slate-700 text-slate-400'}`}
+                                            >
+                                                <ImageIcon className="w-4 h-4" />
+                                                <span className="text-[10px] font-black uppercase tracking-widest">
+                                                    {newTech.agreementFile ? newTech.agreementFile.name : 'Choose Agreement PDF'}
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <textarea value={newTech.bio} onChange={(e) => setNewTech({ ...newTech, bio: e.target.value })} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500 rounded-2xl outline-none font-bold text-xs text-slate-900 dark:text-white transition-all shadow-inner" placeholder="Brief Professional Summary" rows={2} />
                                 </div>
                                 <button
                                     type="submit"

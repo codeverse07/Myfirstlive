@@ -15,7 +15,8 @@ const technicianProfileSchema = new mongoose.Schema({
         type: String,
         unique: true,
         sparse: true,
-        trim: true
+        trim: true,
+        set: v => v === "" ? undefined : v
     },
     bio: {
         type: String,
@@ -28,6 +29,10 @@ const technicianProfileSchema = new mongoose.Schema({
     categories: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Category'
+    }],
+    services: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Service'
     }],
     status: {
         type: String,
@@ -72,6 +77,7 @@ const technicianProfileSchema = new mongoose.Schema({
         aadharCard: String,
         panCard: String,
         resume: String,
+        agreement: String,
         verificationStatus: {
             type: String,
             enum: ['PENDING', 'VERIFIED', 'REJECTED'],

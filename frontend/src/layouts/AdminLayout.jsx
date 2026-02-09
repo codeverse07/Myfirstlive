@@ -1,22 +1,24 @@
 import React from 'react';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
+import { useUser } from '../context/UserContext';
 import { useAdmin } from '../context/AdminContext';
-import { Shield, Layout, Wallet, Share2, LogOut, Settings, Wrench, Users, Clock, User as UserIcon, Tag, MessageSquarePlus, Sun, Moon } from 'lucide-react';
+import { Shield, Layout, Wallet, Share2, LogOut, Settings, Wrench, Users, Clock, User as UserIcon, Tag, MessageSquarePlus, Sun, Moon, Briefcase, Image as ImageIcon, Loader } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../context/ThemeContext';
 
 const AdminLayout = () => {
     const { isAdminAuthenticated, logout } = useAdmin();
+    const { isLoading: isAuthLoading } = useUser();
     const { theme, toggleTheme } = useTheme();
     const navigate = useNavigate();
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
 
     React.useEffect(() => {
-        if (!isAdminAuthenticated) {
+        if (!isAuthLoading && !isAdminAuthenticated) {
             navigate('/admin/login');
         }
-    }, [isAdminAuthenticated, navigate]);
+    }, [isAdminAuthenticated, isAuthLoading, navigate]);
 
     // Handle responsiveness
     React.useEffect(() => {
@@ -32,16 +34,26 @@ const AdminLayout = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
+    if (isAuthLoading) {
+        return (
+            <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-slate-900">
+                <Loader className="w-10 h-10 animate-spin text-indigo-600" />
+            </div>
+        );
+    }
+
     if (!isAdminAuthenticated) return null;
 
     const menuItems = [
         { id: 'overview', path: '/admin/dashboard', label: 'Dashboard', icon: Layout },
         { id: 'bookings', path: '/admin/bookings', label: 'Bookings', icon: Clock },
+        { id: 'roles', path: '/admin/roles', label: 'Role Manager', icon: Briefcase },
         { id: 'experts', path: '/admin/experts', label: 'Technicians', icon: Users },
         { id: 'categories', path: '/admin/categories', label: 'Categories', icon: Tag },
         { id: 'services', path: '/admin/services', label: 'Services', icon: Wrench },
         { id: 'users', path: '/admin/users', label: 'Users', icon: UserIcon },
         { id: 'feedback', path: '/admin/feedback', label: 'Feedback', icon: MessageSquarePlus },
+        { id: 'hero', path: '/admin/hero', label: 'Hero Slides', icon: ImageIcon },
         { id: 'reasons', path: '/admin/reasons', label: 'Extra Charges', icon: Tag },
         { id: 'dealers', path: '/admin/dealers', label: 'Dealers', icon: Users },
         { id: 'toggles', path: '/admin/toggles', label: 'Settings', icon: Settings },

@@ -25,9 +25,9 @@ const updateBookingStatus = {
     body: Joi.object().keys({
         status: Joi.string().valid('ACCEPTED', 'REJECTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED').required(),
         finalAmount: Joi.number().optional(),
-        extraReason: Joi.string().optional(),
+        extraReason: Joi.string().allow('').optional(),
         technicianNote: Joi.string().max(1000).allow('').optional(),
-        securityPin: Joi.string().optional(),
+        securityPin: Joi.string().allow('').optional(),
         partImages: Joi.any().optional(), // Allow file fields if they leak into body
         billImage: Joi.any().optional()
     }).unknown(true) // Allow unknown fields (like potential multer artifacts)

@@ -13,6 +13,18 @@ const settingsSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    maintenanceMessage: {
+        type: String,
+        default: 'Our server is currently undergoing maintenance. We will be back soon!'
+    },
+    maintenanceEndTime: {
+        type: Date,
+        default: null
+    },
+    serviceablePincodes: {
+        type: [String],
+        default: ['845438'] // Default Pincode
+    },
     // Singleton pattern enforcement
     isGlobal: {
         type: Boolean,

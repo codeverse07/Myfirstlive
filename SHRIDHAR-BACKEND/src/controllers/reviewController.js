@@ -10,7 +10,7 @@ exports.createReview = async (req, res, next) => {
         const { bookingId } = req.params;
 
         // 1. Check if booking exists
-        const booking = await Booking.findById(bookingId).populate('service');
+        const booking = await Booking.findById(bookingId).populate('service').populate('category');
         if (!booking) {
             return next(new AppError('No booking found with that ID', 404));
         }
@@ -33,8 +33,8 @@ exports.createReview = async (req, res, next) => {
             booking: bookingId,
             customer: req.user.id,
             technician: booking.technician,
-            category: booking.category?._id || booking.category, // Save category for aggregation
-            service: booking.service?._id || booking.service
+            category: booking.category?.name || booking.category?.toString() || 'General',
+            service: booking.service?._id || booking.service || bookingId // Fallback to bookingId if service is missing in DB
         });
 
         // 5. Notify Technician
@@ -49,6 +49,14 @@ exports.createReview = async (req, res, next) => {
                 rating
             }
         });
+
+        // Socket Emission for Admin
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('review:created', newReview);
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
 
         res.status(201).json({
             status: 'success',
@@ -122,6 +130,14 @@ exports.updateReview = async (req, res, next) => {
         // 4. Save (Triggers static calcAverageRatings via post-save hook)
         await existingReview.save();
 
+        // Socket Emission for Admin
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('review:updated', existingReview);
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
+
         res.status(200).json({
             status: 'success',
             data: { review: existingReview }
@@ -137,6 +153,14 @@ exports.deleteReview = async (req, res, next) => {
 
         if (!review) {
             return next(new AppError('No review found with that ID', 404));
+        }
+
+        // Socket Emission for Admin
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('review:deleted', { id: req.params.id });
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
         }
 
         res.status(204).json({

@@ -140,15 +140,30 @@ reviewSchema.statics.calcServiceRating = async function (serviceId) {
 
     const Service = require('./Service');
     if (stats.length > 0) {
-        await Service.findByIdAndUpdate(serviceId, {
+        const updatedService = await Service.findByIdAndUpdate(serviceId, {
             rating: Math.round(stats[0].avgRating * 10) / 10,
             reviewCount: stats[0].nRating
-        });
+        }, { new: true });
+
+        // Emit socket event for real-time rating update
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().emit('service:updated', updatedService);
+        } catch (err) {
+            console.error('Socket emission failed in calcServiceRating:', err.message);
+        }
     } else {
-        await Service.findByIdAndUpdate(serviceId, {
+        const updatedService = await Service.findByIdAndUpdate(serviceId, {
             rating: 0,
             reviewCount: 0
-        });
+        }, { new: true });
+
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().emit('service:updated', updatedService);
+        } catch (err) {
+            console.error('Socket emission failed in calcServiceRating:', err.message);
+        }
     }
 };
 

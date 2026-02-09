@@ -81,7 +81,7 @@ const ProfilePage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300 relative overflow-hidden">
+    <div className="min-h-screen bg-transparent dark:bg-slate-950 transition-colors duration-300 relative overflow-hidden pb-20">
       {/* Background Dots */}
       <div className="fixed inset-0 pointer-events-none z-0">
         <div className="absolute inset-0 bg-[radial-gradient(#94a3b8_1px,transparent_1px)] dark:bg-[radial-gradient(#ffffff_1px,transparent_1px)] bg-size-[40px_40px] opacity-10 dark:opacity-5" />
@@ -525,9 +525,8 @@ const ProfilePage = () => {
             <div>
               <h3 className="text-slate-900 dark:text-white font-bold text-lg mb-4">Quick Links</h3>
               <ul className="space-y-3">
-                <li><Link to="/contact" className="text-slate-600 dark:text-slate-400 font-medium">About Us</Link></li>
+                <li><Link to="/about" className="text-slate-600 dark:text-slate-400 font-medium">About Us</Link></li>
                 <li><Link to="/services" className="text-slate-600 dark:text-slate-400 font-medium">Our Services</Link></li>
-                <li><Link to="/partner" className="text-blue-600 dark:text-blue-400 font-bold hover:underline">Become a Partner</Link></li>
                 <li>
                   <Link to="/careers" className="text-slate-600 dark:text-slate-400 font-medium hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors flex items-center gap-2">
                     Careers

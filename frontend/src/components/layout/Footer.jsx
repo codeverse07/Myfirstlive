@@ -37,7 +37,7 @@ const Footer = () => {
                     <div className="hidden md:block">
                         <h3 className="md:text-white text-slate-900 dark:text-white font-semibold text-lg mb-6">Quick Links</h3>
                         <ul className="space-y-4">
-                            <li><Link to="/contact" className="md:hover:text-blue-500 hover:text-rose-600 dark:hover:text-blue-400 transition-colors">About Us</Link></li>
+                            <li><Link to="/about" className="md:hover:text-blue-500 hover:text-rose-600 dark:hover:text-blue-400 transition-colors">About Us</Link></li>
                             <li><Link to="/services" className="md:hover:text-blue-500 hover:text-rose-600 dark:hover:text-blue-400 transition-colors">Our Services</Link></li>
                             <li><Link to="/services" className="md:hover:text-blue-500 hover:text-rose-600 dark:hover:text-blue-400 transition-colors">Pricing</Link></li>
                             <li><Link to="/careers" className="md:hover:text-blue-500 hover:text-rose-600 dark:hover:text-blue-400 transition-colors">Careers</Link></li>

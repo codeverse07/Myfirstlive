@@ -15,9 +15,8 @@ const ServiceDetailsPage = () => {
 
     const [service, setService] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [reviews, setReviews] = useState([]);
     const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
-    const [loadingReviews, setLoadingReviews] = useState(false);
+
     const [userCoords, setUserCoords] = useState(null);
 
     // Get User Location for ETA
@@ -39,10 +38,7 @@ const ServiceDetailsPage = () => {
                 const res = await client.get(`/services/${id}`);
                 setService(res.data.data.service);
 
-                // Fetch real reviews
-                if (res.data.data.service?.technician?._id) {
-                    fetchReviews(res.data.data.service.technician._id);
-                }
+
             } catch (err) {
                 console.error("Failed to fetch service details", err);
             } finally {
@@ -53,18 +49,21 @@ const ServiceDetailsPage = () => {
         fetchServiceDetails();
     }, [id]);
 
-    const fetchReviews = async (technicianId) => {
-        try {
-            setLoadingReviews(true);
-            const res = await client.get(`/technicians/${technicianId}/reviews`);
-            setReviews(res.data.data.reviews);
-        } catch (err) {
-            console.error('Error fetching reviews:', err);
-        } finally {
-            setLoadingReviews(false);
-        }
-    };
 
+    // REAL-TIME UPDATES
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleServiceUpdate = (updatedService) => {
+            if (updatedService?._id === id || updatedService?.id === id) {
+                console.log('[Socket] Service Updated:', updatedService.title);
+                setService(prev => ({ ...prev, ...updatedService }));
+            }
+        };
+
+        socket.on('service:updated', handleServiceUpdate);
+        return () => socket.off('service:updated', handleServiceUpdate);
+    }, [socket, id]);
     const handleBookClick = () => {
         if (!isAuthenticated) {
             navigate('/login');
@@ -148,67 +147,69 @@ const ServiceDetailsPage = () => {
                         </p>
 
                         {/* Technician Contact Info */}
-                        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 flex flex-col md:flex-row md:items-center gap-4 border border-slate-100 dark:border-slate-700">
-                            <div className="w-14 h-14 rounded-full bg-white dark:bg-slate-700 flex items-center justify-center text-indigo-600 font-black text-xl shadow-sm overflow-hidden">
-                                {service.technician?.profilePhoto ? (
-                                    <img
-                                        src={service.technician.profilePhoto}
-                                        alt={techName}
-                                        crossOrigin="anonymous"
-                                        referrerPolicy="no-referrer"
-                                        className="w-full h-full object-cover"
-                                    />
-                                ) : (
-                                    techName[0]
-                                )}
-                            </div>
-                            <div className="flex-1">
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Technician</p>
-                                <h3 className="font-bold text-slate-900 dark:text-white text-lg">{techName}</h3>
-                                <div className="flex flex-wrap gap-4 mt-2">
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center">
-                                            <Phone className="w-3 h-3" />
+                        {service.technician && service.technician.name !== 'System Admin' && (
+                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 flex flex-col md:flex-row md:items-center gap-4 border border-slate-100 dark:border-slate-700">
+                                <div className="w-14 h-14 rounded-full bg-white dark:bg-slate-700 flex items-center justify-center text-indigo-600 font-black text-xl shadow-sm overflow-hidden">
+                                    {service.technician?.profilePhoto ? (
+                                        <img
+                                            src={service.technician.profilePhoto}
+                                            alt={techName}
+                                            crossOrigin="anonymous"
+                                            referrerPolicy="no-referrer"
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        techName[0]
+                                    )}
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Technician</p>
+                                    <h3 className="font-bold text-slate-900 dark:text-white text-lg">{techName}</h3>
+                                    <div className="flex flex-wrap gap-4 mt-2">
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center">
+                                                <Phone className="w-3 h-3" />
+                                            </div>
+                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                                                {service.technician?.phone || "No phone available"}
+                                            </span>
                                         </div>
-                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                                            {service.technician?.phone || "No phone available"}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-                                            <MapPin className="w-3 h-3" />
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                                                <MapPin className="w-3 h-3" />
+                                            </div>
+                                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                                                {(() => {
+                                                    const techCoords = service.technician?.technicianProfile?.location?.coordinates;
+                                                    // Default to address if no coords or user location
+                                                    if (!userCoords || !techCoords) return techProfile.location?.address || "Location hidden";
+
+                                                    const toRad = (value) => (value * Math.PI) / 180;
+                                                    const R = 6371; // km
+                                                    const [lon1, lat1] = userCoords;
+                                                    const [lon2, lat2] = techCoords;
+
+                                                    const dLat = toRad(lat2 - lat1);
+                                                    const dLon = toRad(lon2 - lon1);
+                                                    const a =
+                                                        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                                                        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                                                        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                                                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                                                    const distance = parseFloat((R * c).toFixed(1));
+                                                    const eta = Math.ceil((distance / 30) * 60 + 10);
+
+                                                    return `${eta} min (${distance} km) away`;
+                                                })()}
+                                            </span>
                                         </div>
-                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                                            {(() => {
-                                                const techCoords = service.technician?.technicianProfile?.location?.coordinates;
-                                                // Default to address if no coords or user location
-                                                if (!userCoords || !techCoords) return techProfile.location?.address || "Location hidden";
-
-                                                const toRad = (value) => (value * Math.PI) / 180;
-                                                const R = 6371; // km
-                                                const [lon1, lat1] = userCoords;
-                                                const [lon2, lat2] = techCoords;
-
-                                                const dLat = toRad(lat2 - lat1);
-                                                const dLon = toRad(lon2 - lon1);
-                                                const a =
-                                                    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                                                    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-                                                    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-                                                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                                                const distance = parseFloat((R * c).toFixed(1));
-                                                const eta = Math.ceil((distance / 30) * 60 + 10);
-
-                                                return `${eta} min (${distance} km) away`;
-                                            })()}
-                                        </span>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Bio if available */}
-                        {techProfile.bio && (
+                        {techProfile.bio && service.technician?.name !== 'System Admin' && (
                             <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
                                 <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-2">Technician Bio</h3>
                                 <p className="text-sm text-slate-500 italic">"{techProfile.bio}"</p>
@@ -217,51 +218,27 @@ const ServiceDetailsPage = () => {
                     </div>
 
                     {/* Customer Reviews */}
+                    {/* Reservice Protect */}
                     <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-sm border border-slate-100 dark:border-slate-800">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Customer Reviews</h2>
-                            <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-3 py-1 rounded-full text-xs font-bold">
-                                {reviews.length} Reviews
-                            </span>
+                        <div className="flex items-center gap-3 mb-6">
+                            <ShieldCheck className="w-8 h-8 text-green-500 fill-current" />
+                            <h2 className="text-xl font-bold text-slate-900 dark:text-white uppercase tracking-wider">RESERVICE PROTECT</h2>
                         </div>
 
-                        {loadingReviews ? (
-                            <div className="text-center py-8 text-slate-400">Loading reviews...</div>
-                        ) : reviews.length > 0 ? (
-                            <div className="space-y-6">
-                                {reviews.map((review) => (
-                                    <div key={review._id} className="border-b border-slate-100 dark:border-slate-800 pb-6 last:border-0 last:pb-0">
-                                        <div className="flex items-start justify-between mb-2">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-linear-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm overflow-hidden">
-                                                    {review.customer?.profilePhoto ? (
-                                                        <img src={review.customer.profilePhoto} alt={review.customer.name} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        review.customer?.name?.[0] || 'U'
-                                                    )}
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-bold text-slate-900 dark:text-white text-sm">{review.customer?.name || 'Anonymous'}</h4>
-                                                    <p className="text-xs text-slate-500">{new Date(review.createdAt).toLocaleDateString()}</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-1 bg-yellow-50 dark:bg-yellow-900/10 px-2 py-1 rounded-lg">
-                                                <Star className="w-3 h-3 text-yellow-500 fill-current" />
-                                                <span className="text-xs font-bold text-yellow-700 dark:text-yellow-500">{review.rating}</span>
-                                            </div>
-                                        </div>
-                                        <p className="text-slate-600 dark:text-slate-300 pl-13">
-                                            "{review.review}"
-                                        </p>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-12 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
-                                <p className="text-slate-900 dark:text-white font-bold">No reviews yet</p>
-                                <p className="text-slate-500 text-sm mt-1">Be the first to leave a review!</p>
-                            </div>
-                        )}
+                        <ul className="space-y-4">
+                            <li className="flex items-start gap-3">
+                                <div className="w-2 h-2 mt-2 rounded-full bg-blue-500 shrink-0" />
+                                <span className="text-slate-600 dark:text-slate-300 font-medium">30-day warranty on all services</span>
+                            </li>
+                            <li className="flex items-start gap-3">
+                                <div className="w-2 h-2 mt-2 rounded-full bg-blue-500 shrink-0" />
+                                <span className="text-slate-600 dark:text-slate-300 font-medium">Verified and background-checked experts</span>
+                            </li>
+                            <li className="flex items-start gap-3">
+                                <div className="w-2 h-2 mt-2 rounded-full bg-blue-500 shrink-0" />
+                                <span className="text-slate-600 dark:text-slate-300 font-medium">Transparent pricing with no hidden costs</span>
+                            </li>
+                        </ul>
                     </div>
                 </div>
 

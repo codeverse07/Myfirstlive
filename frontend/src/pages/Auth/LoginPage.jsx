@@ -51,7 +51,28 @@ const LoginPage = () => {
     const [password, setPassword] = useState('');
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
+    const [pincode, setPincode] = useState('');
     const [role, setRole] = useState('USER');
+    const [rememberMe, setRememberMe] = useState(true);
+    // Default fallback to ensure user is not blocked if API fails or delays
+    const [allowedPincodes, setAllowedPincodes] = useState(['845438']);
+
+    // Fetch allowed pincodes
+    React.useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/settings/public`);
+                const data = await response.json();
+                if (data.status === 'success' && data.data.serviceablePincodes && data.data.serviceablePincodes.length > 0) {
+                    setAllowedPincodes(data.data.serviceablePincodes);
+                }
+            } catch (error) {
+                console.error('Failed to fetch settings:', error);
+                // Keep default if fail
+            }
+        };
+        fetchSettings();
+    }, []);
 
     useGSAP(() => {
         const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
@@ -137,7 +158,8 @@ const LoginPage = () => {
 
         if (isExistingCustomer) {
             // LOGIN FLOW
-            const result = await login(email, password, tokenToSend);
+            // Enforce 'USER' role for main portal login
+            const result = await login(email, password, tokenToSend, 'USER', rememberMe);
             if (result.success) {
                 toast.success('Welcome back!');
 
@@ -160,8 +182,20 @@ const LoginPage = () => {
                 setRecaptchaToken(null);
             }
         } else {
-            // REGISTER FLOW
-            const result = await register(name, email, password, password, phone, role, tokenToSend);
+            // Pincode Validation - Robus check
+            const cleanPincode = pincode.trim();
+            // Ensure we compare strings to strings
+            console.log('Comparing:', { cleanPincode, allowedPincodes });
+            const isAllowed = allowedPincodes.some(p => p.toString() === cleanPincode);
+
+            if (!isAllowed) {
+                toast.error(`We do not service your location (${cleanPincode}) currently.`);
+                setIsLoading(false);
+                if (recaptchaRef.current) recaptchaRef.current.reset();
+                return; // HALT REGISTRATION
+            }
+
+            const result = await register(name, email, password, password, phone, 'USER', tokenToSend, pincode, '');
 
             if (result.success) {
                 toast.success('Registration successful!');
@@ -170,11 +204,12 @@ const LoginPage = () => {
                 if (from) {
                     navigate(from, { replace: true });
                 } else {
-                    if (role === 'TECHNICIAN') {
-                        navigate('/technician/onboarding');
-                    } else {
-                        navigate('/bookings'); // Redirect to Dashboard
-                    }
+                    // Small notice for address
+                    toast('Please add your address in profile to book a service!', {
+                        icon: '🏠',
+                        duration: 6000
+                    });
+                    navigate('/'); // Redirect to Main Page
                 }
             } else {
                 toast.error(result.message || 'Registration failed');
@@ -193,8 +228,10 @@ const LoginPage = () => {
             return;
         }
 
+        // Note: Google Auth bypasses this frontend pincode check currently. 
+        // Logic would need to be added to the callback or Google flow to support pincode if required.
         const tokenToSend = isCaptchaEnabled ? recaptchaToken : 'bypass-token';
-        window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/auth/google?role=${role}&recaptcha=${tokenToSend}`;
+        window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/auth/google?role=USER&recaptcha=${tokenToSend}`;
     };
 
 
@@ -235,9 +272,14 @@ const LoginPage = () => {
                         </button>
                     </div>
 
+                    <Link to="/" className="inline-flex items-center text-sm text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 mb-4 transition-colors">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                        Back to Home
+                    </Link>
+
                     <form onSubmit={handleSubmit} className="space-y-3 stagger-item">
                         {!isExistingCustomer && (
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-3 mb-3">
                                 <Input
                                     id="name"
                                     label="Full Name"
@@ -248,49 +290,28 @@ const LoginPage = () => {
                                     required
                                     className="py-1.5"
                                 />
-                                <Input
-                                    id="phone"
-                                    label="Phone"
-                                    placeholder="+91..."
-                                    type="tel"
-                                    value={phone}
-                                    onChange={(e) => setPhone(e.target.value)}
-                                    required
-                                    className="py-1.5"
-                                />
-                            </div>
-                        )}
-
-                        {!isExistingCustomer && (
-                            <div className="mb-2">
-                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">I am a</label>
-                                <div className="flex gap-3">
-                                    <label className={`flex-1 border rounded-lg p-2 cursor-pointer transition-colors ${role === 'USER' ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700'}`}>
-                                        <div className="flex items-center gap-2 font-bold text-xs">
-                                            <input
-                                                type="radio"
-                                                name="role"
-                                                value="USER"
-                                                checked={role === 'USER'}
-                                                onChange={(e) => setRole(e.target.value)}
-                                                className="text-blue-600 focus:ring-blue-600"
-                                            />
-                                            Customer
-                                        </div>
-                                    </label>
-                                    <label className={`flex-1 border rounded-lg p-2 cursor-pointer transition-colors ${role === 'TECHNICIAN' ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700'}`}>
-                                        <div className="flex items-center gap-2 font-bold text-xs">
-                                            <input
-                                                type="radio"
-                                                name="role"
-                                                value="TECHNICIAN"
-                                                checked={role === 'TECHNICIAN'}
-                                                onChange={(e) => setRole(e.target.value)}
-                                                className="text-blue-600 focus:ring-blue-600"
-                                            />
-                                            Technician
-                                        </div>
-                                    </label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <Input
+                                        id="phone"
+                                        label="Phone"
+                                        placeholder="+91..."
+                                        type="tel"
+                                        value={phone}
+                                        onChange={(e) => setPhone(e.target.value)}
+                                        required
+                                        className="py-1.5"
+                                    />
+                                    <Input
+                                        id="pincode"
+                                        label="Pincode"
+                                        placeholder="560001"
+                                        type="text"
+                                        value={pincode}
+                                        onChange={(e) => setPincode(e.target.value)}
+                                        required
+                                        className="py-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white border-slate-200 dark:border-slate-700"
+                                        maxLength={6}
+                                    />
                                 </div>
                             </div>
                         )}
@@ -329,7 +350,12 @@ const LoginPage = () => {
                         {isExistingCustomer && (
                             <div className="flex items-center justify-between text-xs">
                                 <label className="flex items-center gap-2 cursor-pointer">
-                                    <input type="checkbox" className="rounded border-slate-300 text-blue-600 focus:ring-blue-600" />
+                                    <input
+                                        type="checkbox"
+                                        checked={rememberMe}
+                                        onChange={(e) => setRememberMe(e.target.checked)}
+                                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+                                    />
                                     <span className="text-slate-600">Remember me</span>
                                 </label>
                                 <a href="#" className="font-bold text-blue-600 hover:text-blue-500 transition-colors">Forgot?</a>

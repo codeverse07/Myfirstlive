@@ -4,7 +4,7 @@ import { useUser } from '../../context/UserContext';
 import { Switch } from '@headlessui/react';
 import {
     LayoutDashboard, ClipboardList, Wallet, User,
-    Bell, Clock, X, TrendingUp, Star, Loader, Check, Sun, Moon, ShieldCheck
+    Bell, Clock, X, TrendingUp, Star, Loader, Check, Sun, Moon, ShieldCheck, ExternalLink, LogOut
 } from 'lucide-react';
 import TechnicianBookings from './TechnicianBookings';
 import { toast } from 'react-hot-toast';
@@ -15,7 +15,7 @@ const TechnicianDashboard = () => {
     const {
         technicianProfile, updateStatus, loading, stats,
         updateProfileData, jobs, reviews,
-        fetchTechnicianBookings, fetchTechnicianStats
+        fetchTechnicianBookings, fetchTechnicianStats, requestPasswordReset
     } = useTechnician();
     const { user, logout, isLoading: authLoading } = useUser();
     const { theme, toggleTheme } = useTheme();
@@ -92,6 +92,15 @@ const TechnicianDashboard = () => {
     }
 
     const toggleStatus = async (checked) => {
+        // NEW RULE: Prevent going offline if there are active IN_PROGRESS jobs
+        if (checked === false) {
+            const hasActiveJobs = jobs?.some(job => job.status === 'IN_PROGRESS');
+            if (hasActiveJobs) {
+                toast.error("Finish your active jobs before going offline!");
+                return;
+            }
+        }
+
         setIsStatusUpdating(true);
         try {
             await updateStatus(checked);
@@ -102,7 +111,8 @@ const TechnicianDashboard = () => {
 
     const NAV_ITEMS = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        { id: 'jobs', label: 'Bookings', icon: ClipboardList }, // Reuse icon or change
+        { id: 'jobs', label: 'Bookings', icon: ClipboardList },
+        { id: 'reviews', label: 'Reviews', icon: Star },
         { id: 'earnings', label: 'Earnings', icon: Wallet },
         { id: 'profile', label: 'Profile', icon: User },
     ];
@@ -189,8 +199,8 @@ const TechnicianDashboard = () => {
                             }}
                             className="flex items-center gap-3 px-4 py-3 text-rose-500 dark:text-rose-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-rose-50 dark:hover:bg-rose-500/5 transition-all group"
                         >
-                            <X className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" />
-                            Terminate Session
+                            <LogOut className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-300" />
+                            Logout
                         </button>
                     </div>
                 </div>
@@ -378,7 +388,12 @@ const TechnicianDashboard = () => {
                                         </div>
                                         <div className="flex flex-col items-end">
                                             <span className="text-3xl font-black text-slate-900 dark:text-white">{technicianProfile?.avgRating && technicianProfile.avgRating > 0 ? technicianProfile.avgRating + ' ★' : 'New'}</span>
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{reviews?.length || 0} verified reviews</span>
+                                            <button
+                                                onClick={() => setActiveTab('reviews')}
+                                                className="text-[10px] font-black text-indigo-500 hover:text-indigo-600 uppercase tracking-widest transition-colors mt-1"
+                                            >
+                                                {reviews?.length || 0} verified reviews →
+                                            </button>
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-10">
@@ -431,6 +446,77 @@ const TechnicianDashboard = () => {
                     )}
 
 
+
+                    {activeTab === 'reviews' && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="space-y-8"
+                        >
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+                                <div>
+                                    <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter">Identity Reputation</h2>
+                                    <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">Full historical testimony record</p>
+                                </div>
+                                <div className="px-6 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-2xl font-black text-slate-900 dark:text-white">{technicianProfile?.avgRating && technicianProfile.avgRating > 0 ? technicianProfile.avgRating + ' ★' : 'New'}</span>
+                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{reviews?.length || 0} Total Reviews</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {reviews?.map((review) => (
+                                    <motion.div
+                                        key={review._id}
+                                        layout
+                                        className="p-8 bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-xl transition-all duration-300"
+                                    >
+                                        <div className="flex items-center gap-4 mb-6">
+                                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center overflow-hidden border border-indigo-100 dark:border-indigo-900/10">
+                                                {review.customer?.profilePhoto ? (
+                                                    <img src={review.customer.profilePhoto} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <span className="text-indigo-600 dark:text-indigo-400 font-black text-lg">
+                                                        {review.customer?.name?.[0] || 'C'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-black text-slate-900 dark:text-white truncate uppercase tracking-tight text-sm">{review.customer?.name || 'Client'}</p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase">{new Date(review.createdAt).toLocaleDateString()}</p>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-500/10 rounded-xl border border-amber-100 dark:border-amber-500/20">
+                                                <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                                                <span className="text-xs font-black text-amber-700 dark:text-amber-400">{review.rating}</span>
+                                            </div>
+                                        </div>
+                                        <div className="relative pt-2">
+                                            <p className="text-xs font-bold text-slate-600 dark:text-slate-400 leading-relaxed italic border-l-2 border-indigo-500/10 pl-4">
+                                                "{review.review}"
+                                            </p>
+                                        </div>
+                                        {review.booking?.status === 'COMPLETED' && (
+                                            <div className="mt-6 pt-6 border-t border-slate-50 dark:border-slate-800/50">
+                                                <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Job Completed: {new Date(review.booking.scheduledAt).toLocaleDateString()}</p>
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                ))}
+                            </div>
+
+                            {(!reviews || reviews.length === 0) && (
+                                <div className="py-24 text-center bg-white dark:bg-slate-900 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-800">
+                                    <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto text-slate-200 dark:text-slate-700 mb-6">
+                                        <Star className="w-10 h-10" />
+                                    </div>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white">Zero Reputation Data</h3>
+                                    <p className="text-slate-400 font-medium max-w-xs mx-auto mt-2">Finish your active assignments to receive testimony from your clients.</p>
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
 
                     {activeTab === 'jobs' && (
                         <TechnicianBookings />
@@ -576,15 +662,30 @@ const TechnicianDashboard = () => {
                                                 </div>
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={() => {
-                                                setEditForm({ bio: technicianProfile?.bio || '', skills: technicianProfile?.skills?.join(', ') || '', profilePhoto: null, preview: null });
-                                                setIsEditingProfile(true);
-                                            }}
-                                            className="px-8 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:scale-105 transition-all shadow-xl"
-                                        >
-                                            Modify Profile
-                                        </button>
+                                        <div className="flex flex-wrap gap-3">
+                                            <button
+                                                onClick={() => {
+                                                    setEditForm({ bio: technicianProfile?.bio || '', skills: technicianProfile?.skills?.join(', ') || '', profilePhoto: null, preview: null });
+                                                    setIsEditingProfile(true);
+                                                }}
+                                                className="px-8 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:scale-105 transition-all shadow-xl"
+                                            >
+                                                Modify Profile
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    if (window.confirm("Are you sure you want to request a password reset? Administration will be notified to assist you.")) {
+                                                        const result = await requestPasswordReset();
+                                                        if (result?.success) {
+                                                            // Optional: add some local UI state if needed
+                                                        }
+                                                    }
+                                                }}
+                                                className="px-8 py-3 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm"
+                                            >
+                                                Request Password Reset
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
@@ -623,10 +724,48 @@ const TechnicianDashboard = () => {
                                                 )}
                                             </div>
                                         </div>
+
+                                        {/* Legal Agreement Section */}
+                                        <div className="space-y-4">
+                                            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Legal Framework</p>
+                                            <div className="pt-2">
+                                                {technicianProfile?.documents?.agreement ? (
+                                                    <a
+                                                        href={technicianProfile.documents.agreement}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-3 px-6 py-4 bg-slate-50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl group transition-all"
+                                                    >
+                                                        <div className="p-2 bg-indigo-500/10 rounded-lg group-hover:bg-indigo-500 group-hover:text-white transition-all">
+                                                            <ExternalLink className="w-4 h-4" />
+                                                        </div>
+                                                        <div className="text-left">
+                                                            <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">Signed Agreement</p>
+                                                            <p className="text-[9px] font-bold text-slate-400 uppercase">Reservice Partner Document.pdf</p>
+                                                        </div>
+                                                    </a>
+                                                ) : (
+                                                    <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl flex items-center gap-3 opacity-60">
+                                                        <ShieldCheck className="w-5 h-5 text-slate-300" />
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">No agreement uploaded yet</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div className="pt-10 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">Member since {new Date(user?.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}</p>
+                                        <button
+                                            onClick={async () => {
+                                                await logout();
+                                                window.location.href = '/';
+                                            }}
+                                            className="md:hidden flex items-center gap-2 px-4 py-2 text-rose-500 font-black text-[10px] uppercase tracking-widest bg-rose-50 dark:bg-rose-500/10 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-all border border-rose-100 dark:border-rose-500/20"
+                                        >
+                                            <LogOut className="w-3 h-3" />
+                                            Logout
+                                        </button>
                                     </div>
                                 </div>
                             )}
@@ -650,8 +789,8 @@ const TechnicianDashboard = () => {
                         </button>
                     ))}
                 </nav>
-            </main>
-        </div>
+            </main >
+        </div >
     );
 };
 

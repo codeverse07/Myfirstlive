@@ -19,6 +19,7 @@ router.post(
 );
 router.post('/login', authLimiter, verifyRecaptcha, validate(authValidation.login), authController.login);
 router.post('/logout', authController.logout);
+router.post('/forgot-password-request', authLimiter, authController.forgotPasswordRequest);
 
 // Example of how to get current user details
 router.get('/me', authMiddleware.protect, authController.getMe, userController.getUser);

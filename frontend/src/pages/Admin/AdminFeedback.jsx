@@ -172,7 +172,7 @@ const AdminFeedback = () => {
                                             </div>
                                         </div>
                                         <span className="text-[9px] font-black text-white uppercase bg-indigo-600 px-3 py-1 rounded-full tracking-widest shadow-md shadow-indigo-500/20">
-                                            ID: {review.booking?.substring(0, 6).toUpperCase() || 'MANUAL'}
+                                            ID: {(review.booking?._id || (typeof review.booking === 'string' ? review.booking : '')).substring(0, 6).toUpperCase() || 'MANUAL'}
                                         </span>
                                     </div>
                                 </motion.div>

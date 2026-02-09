@@ -29,16 +29,15 @@ const EditProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
         setIsLoading(true);
 
         try {
-            // Validate Pincode (Requirement: Only 845438 allowed)
-            if (formData.pincode && formData.pincode !== '845438') {
-                throw new Error('Sorry! We only serve pincode 845438 at the moment.');
-            }
-
             if (!formData.name.trim()) {
                 throw new Error('Name is required');
             }
 
-            await onUpdate(formData);
+            // Exclude pincode from update payload to prevent backend validation errors
+            // as pincode updates are disabled here.
+            const { pincode, ...updateData } = formData;
+
+            await onUpdate(updateData);
             onClose();
         } catch (err) {
             setError(err.message);
@@ -100,20 +99,26 @@ const EditProfileModal = ({ isOpen, onClose, user, onUpdate }) => {
                             </div>
                         </div>
 
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Pincode</label>
+                        <div className="space-y-1.5 opacity-50 cursor-not-allowed">
+                            <div className="flex justify-between items-center">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Pincode</label>
+                                <span className="text-[10px] items-center flex gap-1 font-bold text-amber-500 bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 rounded">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                    Cannot be changed
+                                </span>
+                            </div>
                             <div className="relative">
                                 <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                                 <input
                                     type="text"
                                     value={formData.pincode}
-                                    onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
-                                    className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-none focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
+                                    readOnly
+                                    disabled
+                                    className="w-full pl-12 pr-4 py-3 bg-slate-100 dark:bg-slate-800/50 rounded-xl border-none text-slate-500 focus:ring-0 cursor-not-allowed font-medium"
                                     placeholder="845438"
-                                    maxLength={6}
                                 />
                             </div>
-                            <p className="text-[10px] text-slate-400 ml-1">Currently serving only 845438 area.</p>
+                            <p className="text-[10px] text-slate-400 ml-1">To change pincode, please contact support or register a new account.</p>
                         </div>
                     </div>
 

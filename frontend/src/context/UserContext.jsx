@@ -73,12 +73,16 @@ export const UserProvider = ({ children }) => {
         localStorage.setItem('user_addresses', JSON.stringify(addresses));
     }, [addresses]);
 
-    const login = async (email, password, recaptchaToken) => {
+    const login = async (email, password, recaptchaToken, role, rememberMe = true) => {
         setIsLoading(true);
         setError(null);
         try {
-            const { data } = await client.post('/auth/login', { email, password, recaptchaToken });
+            // We pass 'role' to allow backend to enforce portal isolation
+            const { data } = await client.post('/auth/login', { email, password, recaptchaToken, role, rememberMe });
             if (data.status === 'success' && data.data.user) {
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                }
                 setUser(data.data.user);
                 toast.success('Login successful!');
                 return { success: true, user: data.data.user };
@@ -95,7 +99,7 @@ export const UserProvider = ({ children }) => {
         }
     };
 
-    const register = async (name, email, password, passwordConfirm, phone, role = 'USER', recaptchaToken) => {
+    const register = async (name, email, password, passwordConfirm, phone, role = 'USER', recaptchaToken, pincode, address) => {
         setIsLoading(true);
         setError(null);
         try {
@@ -106,9 +110,14 @@ export const UserProvider = ({ children }) => {
                 passwordConfirm,
                 phone,
                 role,
-                recaptchaToken // Pass token to backend
+                recaptchaToken, // Pass token to backend
+                pincode,
+                address
             });
             if (data.status === 'success' && data.data.user) {
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                }
                 setUser(data.data.user);
                 toast.success('Registration successful!');
                 return { success: true, user: data.data.user };
@@ -131,11 +140,11 @@ export const UserProvider = ({ children }) => {
             toast.success('Logged out successfully');
         } catch (err) {
             console.error('Logout error', err);
-            toast.error('Logout failed');
+            // toast.error('Logout failed'); // Often fails if already unauthorized, ignore
         } finally {
             setUser(null);
-            // Clear local preferences or session-related data
-            localStorage.removeItem('admin_auth'); // Just in case
+            localStorage.removeItem('token');
+            localStorage.removeItem('admin_auth');
             // setSavedServices([]);
             // setAddresses([]);
         }
@@ -171,37 +180,57 @@ export const UserProvider = ({ children }) => {
         }
     };
 
-    // Address management (Local for now, can be moved to API if backend supports it)
+    // Address management (Local for now)
     const addAddress = (newAddr) => {
-        const addrObj = {
-            ...newAddr,
-            id: Date.now(),
-            isDefault: addresses.length === 0
-        };
-        setAddresses(prev => [...prev, addrObj]);
+        setAddresses(prev => {
+            const isFirst = prev.length === 0;
+            const addrObj = {
+                ...newAddr,
+                id: Date.now(),
+                isDefault: isFirst
+            };
+            return [...prev, addrObj];
+        });
+        toast.success("Address added");
     };
 
     const removeAddress = (addressId) => {
         setAddresses(prev => {
-            const filtered = prev.filter(a => a.id !== addressId);
-            if (filtered.length > 0 && !filtered.find(a => a.isDefault)) {
-                filtered[0].isDefault = true;
+            const remaining = prev.filter(a => a.id !== addressId);
+            // If we removed the default, set a new default
+            if (remaining.length > 0) {
+                const hasDefault = remaining.some(a => a.isDefault);
+                if (!hasDefault) {
+                    remaining[0].isDefault = true;
+                }
             }
-            return filtered;
+            return remaining;
         });
+        toast.success("Address removed");
     };
 
-    const updateAddress = (newAddress) => {
-        // Legacy support if used elsewhere
-        console.warn('updateAddress deprecated in favor of full profile update');
+    const saveService = async (serviceId) => {
+        // Optimistically update local state
+        const newSaved = [...savedServices, serviceId];
+        setSavedServices(newSaved);
+
+        // Also update the 'user' object if it exists so UI checks against user.savedServices pass
+        if (user) {
+            setUser({ ...user, savedServices: [...(user.savedServices || []), serviceId] });
+        }
+        toast.success("Service saved");
+        // TODO: Call API to persist
     };
 
-    const toggleSavedService = (serviceId) => {
-        setSavedServices(prev =>
-            prev.includes(serviceId)
-                ? prev.filter(id => id !== serviceId)
-                : [...prev, serviceId]
-        );
+    const removeService = async (serviceId) => {
+        const newSaved = savedServices.filter(id => id !== serviceId);
+        setSavedServices(newSaved);
+
+        if (user) {
+            setUser({ ...user, savedServices: (user.savedServices || []).filter(s => (s._id || s) !== serviceId) });
+        }
+        toast.success("Service removed");
+        // TODO: Call API to persist
     };
 
     return (
@@ -217,12 +246,13 @@ export const UserProvider = ({ children }) => {
             isChatOpen,
             setIsChatOpen,
             savedServices,
-            toggleSavedService,
+            saveService,
+            removeService,
+            // Addresses
+            addresses,
             addAddress,
             removeAddress,
             submitFeedback,
-            // Re-export specific helpers if needed
-            // updateAddress - deprecated
         }}>
             {children}
         </UserContext.Provider>

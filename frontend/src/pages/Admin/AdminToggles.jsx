@@ -1,10 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAdmin } from '../../context/AdminContext';
-import { Wallet, Share2, Zap, Settings2, ShieldCheck, ToggleRight, LayoutGrid, Sparkles } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Wallet, Share2, Zap, Settings2, ShieldCheck, ToggleRight, LayoutGrid, Sparkles, AlertTriangle, Clock, Send, Save } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'react-hot-toast';
 
 const AdminToggles = () => {
-    const { appSettings, toggleSetting } = useAdmin();
+    const { appSettings, toggleSetting, updateSettings } = useAdmin();
+    const [maintenanceSettings, setMaintenanceSettings] = useState({
+        message: appSettings.maintenanceMessage || '',
+        endTime: appSettings.maintenanceEndTime ? new Date(appSettings.maintenanceEndTime).toISOString().slice(0, 16) : ''
+    });
 
     const sections = [
         {
@@ -32,14 +37,21 @@ const AdminToggles = () => {
             glow: 'shadow-slate-500/40'
         },
         {
-            id: 'analyticsPublic',
-            label: 'Public Insight Node',
-            desc: 'Expose high-level performance metrics to system participants.',
-            icon: LayoutGrid,
-            color: 'bg-purple-600',
-            glow: 'shadow-purple-500/40'
+            id: 'maintenanceMode',
+            label: 'Maintenance Protocol',
+            desc: 'Enable global blackout. Blocks all user/tech traffic with a custom downtime interface.',
+            icon: AlertTriangle,
+            color: 'bg-amber-600',
+            glow: 'shadow-amber-500/40'
         }
     ];
+
+    const handleMaintenanceSave = async () => {
+        await updateSettings({
+            maintenanceMessage: maintenanceSettings.message,
+            maintenanceEndTime: maintenanceSettings.endTime ? new Date(maintenanceSettings.endTime) : null
+        });
+    };
 
     return (
         <div className="space-y-8 max-w-6xl mx-auto pb-12">
@@ -81,9 +93,50 @@ const AdminToggles = () => {
 
                         <div className="relative z-10">
                             <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">{section.label}</h3>
-                            <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed mb-10 font-medium max-w-[200px] sm:max-w-none">
+                            <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed mb-6 font-medium max-w-[200px] sm:max-w-none">
                                 {section.desc}
                             </p>
+
+                            <AnimatePresence>
+                                {section.id === 'maintenanceMode' && appSettings.maintenanceMode && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        className="space-y-4 mb-6 pt-4 border-t border-slate-100 dark:border-slate-800"
+                                    >
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Public Broadcast Message</label>
+                                            <textarea
+                                                value={maintenanceSettings.message}
+                                                onChange={(e) => setMaintenanceSettings(prev => ({ ...prev, message: e.target.value }))}
+                                                className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 p-4 rounded-2xl text-xs font-medium focus:ring-2 ring-blue-500/20 outline-none transition-all"
+                                                placeholder="Write a message for users..."
+                                                rows={3}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-2">Estimated Uptime</label>
+                                            <div className="relative">
+                                                <input
+                                                    type="datetime-local"
+                                                    value={maintenanceSettings.endTime}
+                                                    onChange={(e) => setMaintenanceSettings(prev => ({ ...prev, endTime: e.target.value }))}
+                                                    className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 pl-10 pr-4 py-3 rounded-2xl text-xs font-bold focus:ring-2 ring-blue-500/20 outline-none transition-all text-slate-600 dark:text-white"
+                                                />
+                                                <Clock className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={handleMaintenanceSave}
+                                            className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-950 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 group hover:scale-[1.02] transition-transform"
+                                        >
+                                            <Save className="w-3.5 h-3.5" />
+                                            Synchronize Protocol
+                                        </button>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
 
                             <div className="flex items-center justify-between pt-6 border-t border-slate-50 dark:border-slate-800/50">
                                 <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest ${appSettings[section.id] ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}>

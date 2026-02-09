@@ -15,6 +15,14 @@ exports.createFeedback = async (req, res, next) => {
             requestedCategoryName: req.body.requestedCategoryName
         });
 
+        // Socket Emission for Admin
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('feedback:created', newFeedback);
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
+
         res.status(201).json({
             status: 'success',
             data: {
@@ -60,6 +68,14 @@ exports.updateFeedbackStatus = async (req, res, next) => {
             return next(new AppError('No feedback found with that ID', 404));
         }
 
+        // Socket Emission for Admin
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('feedback:updated', feedback);
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
+
         res.status(200).json({
             status: 'success',
             data: {
@@ -77,6 +93,14 @@ exports.deleteFeedback = async (req, res, next) => {
 
         if (!feedback) {
             return next(new AppError('No feedback found with that ID', 404));
+        }
+
+        // Socket Emission for Admin
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('feedback:deleted', { id: req.params.id });
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
         }
 
         res.status(204).json({

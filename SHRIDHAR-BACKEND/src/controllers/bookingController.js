@@ -6,6 +6,7 @@ const Reason = require('../models/Reason');
 const TechnicianProfile = require('../models/TechnicianProfile');
 const AppError = require('../utils/AppError');
 const notificationService = require('../services/notificationService');
+const socketService = require('../utils/socket'); // Import Socket Service
 
 // Helper to generate 6-digit Happy Pin
 const generateHappyPin = () => {
@@ -116,17 +117,19 @@ exports.createBooking = async (req, res, next) => {
             .populate('category', 'name price image icon')
             .populate('customer', 'name email phone profilePhoto');
 
-        // 4. Send Notification to Technician (Only if assigned)
-        // This logic is now handled by the assignment process, not initial booking creation.
-        // if (booking.technician) {
-        //     await notificationService.send({
-        //         recipient: booking.technician._id,
-        //         type: 'BOOKING_REQUEST',
-        //         title: 'New Booking Request',
-        //         message: `${req.user.name} has requested a booking for ${service.title}`,
-        //         data: { bookingId: booking._id, serviceId: service._id }
-        //     });
-        // }
+        // Socket Emission for Admin & Customer
+        try {
+            const io = socketService.getIo();
+            io.to('admin-room').emit('booking:created', booking);
+
+            // Emit to Customer
+            if (booking.customer) {
+                const customerId = booking.customer._id || booking.customer;
+                io.to(`user:${customerId}`).emit('booking:created', booking);
+            }
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
 
         res.status(201).json({
             status: 'success',
@@ -237,6 +240,16 @@ exports.updateBookingStatus = async (req, res, next) => {
 
         // State Machine Logic
         if (status === 'CANCELLED') {
+            // NEW RULE: Technician cannot cancel once they accept or start work
+            if (isTechnician && ['ACCEPTED', 'IN_PROGRESS'].includes(booking.status)) {
+                return next(new AppError('Technicians cannot cancel a job once it is accepted or in progress. Please contact administrator.', 400));
+            }
+
+            // IDOR PROTECTION: Ensure requester is User, Assigned Tech, or Admin
+            if (!isAdmin && !isCustomer && !isTechnician) {
+                return next(new AppError('You do not have permission to cancel this booking', 403));
+            }
+
             // Both can cancel if pending, assigned, accepted OR IN_PROGRESS
             // Admin can always cancel
             if (!isAdmin && !['PENDING', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS'].includes(booking.status)) {
@@ -291,8 +304,6 @@ exports.updateBookingStatus = async (req, res, next) => {
             // Only Technician or Admin can progress
             if (!isTechnician && !isAdmin) return next(new AppError('Only technician can update progress', 403));
 
-            // Validate flow: ACCEPTED -> IN_PROGRESS -> COMPLETED
-            // Admin can force jump states if needed, but let's keep flow for sanity mainly
             const isValidFlow =
                 (booking.status === 'ACCEPTED' && status === 'IN_PROGRESS') ||
                 (booking.status === 'IN_PROGRESS' && status === 'COMPLETED') ||
@@ -326,13 +337,20 @@ exports.updateBookingStatus = async (req, res, next) => {
                 }
 
                 // 3. Set Completion Fields
-                booking.finalAmount = finalAmount || booking.price;
+                booking.finalAmount = finalAmount ? Number(finalAmount) : booking.price;
                 booking.technicianNote = technicianNote;
                 booking.completedAt = Date.now();
 
-                if (Number(booking.finalAmount) > Number(booking.price)) {
-                    if (!extraReason) return next(new AppError('Reason for extra charges is required', 400));
+                // Validation: Only require extraReason if finalAmount is strictly greater than original price
+                const isPriceIncreased = Math.round(Number(booking.finalAmount)) > Math.round(Number(booking.price));
+
+                if (isPriceIncreased) {
+                    if (!extraReason || !extraReason.trim()) {
+                        return next(new AppError('Reason for extra charges is required when price is increased', 400));
+                    }
                     booking.extraReason = extraReason;
+                } else {
+                    booking.extraReason = undefined;
                 }
 
                 if (req.files && req.files.length > 0) {
@@ -386,6 +404,26 @@ exports.updateBookingStatus = async (req, res, next) => {
         ).populate('category customer technician review');
 
         console.log(`[DEBUG] Status Update Success: ${updatedBooking._id} (${status})`);
+
+        // Socket Emission for Admin & Technician
+        try {
+            const io = socketService.getIo();
+            io.to('admin-room').emit('booking:updated', updatedBooking);
+
+            // Also emit to specific technician if assigned
+            if (updatedBooking.technician) {
+                const techId = updatedBooking.technician._id || updatedBooking.technician;
+                io.to(`user:${techId}`).emit('booking:updated', updatedBooking);
+            }
+
+            // Emit to Customer
+            if (updatedBooking.customer) {
+                const customerId = updatedBooking.customer._id || updatedBooking.customer;
+                io.to(`user:${customerId}`).emit('booking:updated', updatedBooking);
+            }
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
 
         res.status(200).json({
             status: 'success',

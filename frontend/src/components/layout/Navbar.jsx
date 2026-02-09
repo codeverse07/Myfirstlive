@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
-import { Menu, X, Wrench, User, Moon, Sun, Bot, MapPin } from 'lucide-react';
+import { Menu, X, Wrench, User, Moon, Sun, Bot, MapPin, Volume2, VolumeX } from 'lucide-react';
 import Button from '../common/Button';
 import { useTheme } from '../../context/ThemeContext';
 import { useUser } from '../../context/UserContext';
@@ -12,7 +12,7 @@ const Navbar = () => {
     const location = useLocation();
     const { theme, toggleTheme } = useTheme();
     const { setIsChatOpen, isAuthenticated, user } = useUser();
-    const { playGlassSound } = useSound();
+    const { playGlassSound, isSoundEnabled, setIsSoundEnabled } = useSound();
     const [locationName, setLocationName] = useState(() => {
         return localStorage.getItem('user_location') || null;
     });
@@ -147,6 +147,24 @@ const Navbar = () => {
                             )}
                         </button>
 
+                        {/* Sound Toggle - Only for registered users */}
+                        {isAuthenticated && (
+                            <button
+                                onClick={() => setIsSoundEnabled(!isSoundEnabled)}
+                                className={`p-2 rounded-xl transition-all duration-300 active:scale-95 ${isTransparent
+                                    ? 'bg-white/10 text-white hover:bg-white/20'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                    }`}
+                                aria-label="Toggle Sound"
+                            >
+                                {isSoundEnabled ? (
+                                    <Volume2 className="w-5 h-5" />
+                                ) : (
+                                    <VolumeX className="w-5 h-5" />
+                                )}
+                            </button>
+                        )}
+
 
                         {!isAuthenticated ? (
                             <>
@@ -213,7 +231,50 @@ const Navbar = () => {
                                 {link.name}
                             </NavLink>
                         ))}
-                        <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-3">
+
+                        {/* Mobile Theme Toggle */}
+                        <div className="px-3 py-2">
+                            <button
+                                onClick={toggleTheme}
+                                className="flex items-center gap-2 w-full text-left text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 font-medium"
+                            >
+                                {theme === 'light' ? (
+                                    <>
+                                        <Moon className="w-5 h-5" />
+                                        <span>Switch to Dark Mode</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Sun className="w-5 h-5" />
+                                        <span>Switch to Light Mode</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Mobile Sound Toggle - Only for registered users */}
+                        {isAuthenticated && (
+                            <div className="px-3 py-2">
+                                <button
+                                    onClick={() => setIsSoundEnabled(!isSoundEnabled)}
+                                    className="flex items-center gap-2 w-full text-left text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 font-medium"
+                                >
+                                    {isSoundEnabled ? (
+                                        <>
+                                            <Volume2 className="w-5 h-5" />
+                                            <span>Mute Sounds</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <VolumeX className="w-5 h-5" />
+                                            <span>Unmute Sounds</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-3">
                             <Link to="/login" onClick={() => setIsMenuOpen(false)}>
                                 <Button variant="ghost" className="w-full justify-start text-slate-600 dark:text-slate-400">
                                     Log in

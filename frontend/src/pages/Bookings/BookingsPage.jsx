@@ -256,7 +256,7 @@ const BookingsPage = () => {
             <div className="block md:hidden">
                 <MobileBookingsPage />
             </div>
-            <div ref={containerRef} className="hidden md:block relative min-h-screen bg-slate-50 dark:bg-slate-950 selection:bg-blue-100 dark:selection:bg-blue-900/30 overflow-hidden transition-colors duration-300">
+            <div ref={containerRef} className="hidden md:block relative min-h-screen bg-transparent dark:bg-slate-950 selection:bg-blue-100 dark:selection:bg-blue-900/30 overflow-hidden transition-colors duration-300">
                 {/* Background Decorations */}
                 <div className="absolute inset-0 bg-[radial-gradient(#94a3b8_1.5px,transparent_1.5px)] dark:bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:40px_40px] opacity-20 dark:opacity-10" />
                 <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-500/5 dark:bg-blue-500/[0.02] rounded-full blur-[120px] -translate-y-1/3 translate-x-1/3" />

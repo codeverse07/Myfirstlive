@@ -59,29 +59,20 @@ const AdminBookings = () => {
     };
 
     const getFilteredTechnicians = (booking) => {
-        const bookingCatId = booking.category?._id || booking.category?.id;
-        const bookingCatName = booking.category?.name?.toLowerCase();
+        const bookingServiceId = booking.service?._id || booking.service?.id || booking.service;
 
         return technicians.filter(t => {
             if (t.documents?.verificationStatus !== 'VERIFIED') return false;
-            if (t.user?.isActive === false) return false; // Exclude blocked users
+            if (t.user?.isActive === false) return false;
 
-            // 1. Strict Category ID Match
-            // Handle both populated object and ID string
-            const hasCategory = t.categories?.some(cat => {
-                const cId = cat._id || cat.id || cat; // Handle object or string
-                return cId && String(cId) === String(bookingCatId);
+            // STRICT ROLE MATCHING: Only show technicians assigned to the specific service
+            // This ensures "Premium AC" techs don't show up for "Basic AC" and vice versa.
+            const hasServiceRole = t.services?.some(s => {
+                const sId = s._id || s.id || s;
+                return sId && String(sId) === String(bookingServiceId);
             });
 
-            if (hasCategory) return true;
-
-            // 2. Fallback: Check by Skills string ONLY if technician has NO assigned categories
-            // This ensures that once categories are set by an admin, they are strictly followed.
-            if ((!t.categories || t.categories.length === 0) && bookingCatName) {
-                if (t.skills?.some(skill => skill.toLowerCase().includes(bookingCatName))) return true;
-            }
-
-            return false;
+            return hasServiceRole;
         }).sort((a, b) => {
             // Sort Online first
             if (a.isOnline && !b.isOnline) return -1;
@@ -196,7 +187,7 @@ const AdminBookings = () => {
                                                             </div>
                                                             <div>
                                                                 <p className="font-black text-slate-900 dark:text-white text-sm uppercase">
-                                                                    {booking.category?.name || 'Service'}
+                                                                    {booking.service?.title || booking.category?.name || 'Service'}
                                                                 </p>
                                                                 <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-0.5 tracking-tighter uppercase">
                                                                     #{booking._id.slice(-8)}
@@ -230,23 +221,25 @@ const AdminBookings = () => {
                                                                         >
                                                                             <RefreshCw className="w-3 h-3" />
                                                                         </button>
-                                                                        <button
-                                                                            onClick={async () => {
-                                                                                if (window.confirm("Are you sure you want to unassign this expert?")) {
-                                                                                    setActionLoading(prev => ({ ...prev, [booking._id]: true }));
-                                                                                    try {
-                                                                                        await assignTechnician(booking._id, null);
-                                                                                        toast.success("Expert unassigned successfully");
-                                                                                    } finally {
-                                                                                        setActionLoading(prev => ({ ...prev, [booking._id]: false }));
+                                                                        {['PENDING', 'ASSIGNED'].includes(booking.status) && (
+                                                                            <button
+                                                                                onClick={async () => {
+                                                                                    if (window.confirm("Are you sure you want to unassign this expert?")) {
+                                                                                        setActionLoading(prev => ({ ...prev, [booking._id]: true }));
+                                                                                        try {
+                                                                                            await assignTechnician(booking._id, null);
+                                                                                            toast.success("Expert unassigned successfully");
+                                                                                        } finally {
+                                                                                            setActionLoading(prev => ({ ...prev, [booking._id]: false }));
+                                                                                        }
                                                                                     }
-                                                                                }
-                                                                            }}
-                                                                            title="Unassign Expert"
-                                                                            className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-rose-600 rounded-lg transition-colors"
-                                                                        >
-                                                                            <UserMinus className="w-3 h-3" />
-                                                                        </button>
+                                                                                }}
+                                                                                title="Unassign Expert"
+                                                                                className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-rose-600 rounded-lg transition-colors"
+                                                                            >
+                                                                                <UserMinus className="w-3 h-3" />
+                                                                            </button>
+                                                                        )}
                                                                     </div>
                                                                 )}
                                                             </div>

@@ -34,12 +34,21 @@ exports.createTechnician = async (req, res, next) => {
             bio: bio || '',
             skills: skills || [],
             documents: {
-                verificationStatus: 'PENDING'
+                verificationStatus: 'PENDING',
+                agreement: req.file ? req.file.path : undefined
             }
         });
 
         // Populate user data in response
         await technicianProfile.populate('user', 'name email phone');
+
+        // Socket Emission for Real-time Update
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('technician:created', technicianProfile);
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
 
         res.status(201).json({
             status: 'success',
@@ -127,8 +136,9 @@ exports.getAllTechnicians = async (req, res, next) => {
         const skip = (pageNum - 1) * limitNum;
 
         const technicians = await TechnicianProfile.find(filter)
-            .populate('user', 'name email phone isActive') // Important: See user details
+            .populate('user', 'name email phone isActive passwordResetRequested') // Important: See user details
             .populate('categories', 'name') // Populate category names
+            .populate('services', 'title price') // Populate service roles
             .sort('-createdAt')
             .skip(skip)
             .limit(limitNum);
@@ -150,7 +160,7 @@ exports.getAllTechnicians = async (req, res, next) => {
 
 exports.approveTechnician = async (req, res, next) => {
     try {
-        const { categoryIds } = req.body; // Expecting Array of Strings
+        const { categoryIds, serviceIds } = req.body; // Expecting Arrays of Strings
         const technician = await TechnicianProfile.findById(req.params.id);
         if (!technician) return next(new AppError('Technician not found', 404));
 
@@ -163,7 +173,8 @@ exports.approveTechnician = async (req, res, next) => {
         // const count = await Category.countDocuments({ _id: { $in: categoryIds } });
         // if (count !== categoryIds.length) ...
 
-        technician.categories = categoryIds;
+        technician.categories = categoryIds || [];
+        if (serviceIds) technician.services = serviceIds;
         technician.documents.verificationStatus = 'VERIFIED';
         await technician.save();
 
@@ -175,6 +186,14 @@ exports.approveTechnician = async (req, res, next) => {
             targetId: technician._id,
             details: { previousStatus: 'PENDING', assignedCategories: categoryIds }
         });
+
+        // Socket Emission for Real-time Update
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('technician:updated', technician);
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
 
         res.status(200).json({ status: 'success', data: { technician } });
     } catch (error) {
@@ -198,6 +217,14 @@ exports.rejectTechnician = async (req, res, next) => {
             targetType: 'TechnicianProfile',
             targetId: technician._id
         });
+
+        // Socket Emission for Real-time Update
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('technician:updated', technician);
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
 
         res.status(200).json({ status: 'success', data: { technician } });
     } catch (error) {
@@ -237,6 +264,14 @@ exports.deleteTechnician = async (req, res, next) => {
             targetId: req.params.id
         });
 
+        // Socket Emission for Real-time Update
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('technician:deleted', { id: req.params.id });
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
+
         res.status(204).json({ status: 'success', data: null });
     } catch (error) {
         next(error);
@@ -245,7 +280,7 @@ exports.deleteTechnician = async (req, res, next) => {
 
 exports.updateTechnicianProfile = async (req, res, next) => {
     try {
-        const { bio, skills, employeeId, name, phone, address, categories } = req.body;
+        const { bio, skills, employeeId, name, phone, address, categories, services } = req.body;
         const technician = await TechnicianProfile.findById(req.params.id);
 
         if (!technician) return next(new AppError('Technician not found', 404));
@@ -253,9 +288,12 @@ exports.updateTechnicianProfile = async (req, res, next) => {
         // Update Profile fields
         if (bio !== undefined) technician.bio = bio;
         if (skills !== undefined) technician.skills = Array.isArray(skills) ? skills : skills.split(',').map(s => s.trim());
-        if (employeeId !== undefined) technician.employeeId = employeeId;
+        if (employeeId !== undefined) technician.employeeId = employeeId === '' ? undefined : employeeId;
         if (categories !== undefined) {
             technician.categories = Array.isArray(categories) ? categories : categories.split(',').map(c => c.trim()).filter(Boolean);
+        }
+        if (services !== undefined) {
+            technician.services = Array.isArray(services) ? services : services.split(',').map(s => s.trim()).filter(Boolean);
         }
         if (address !== undefined) {
             if (!technician.location) technician.location = { type: 'Point', coordinates: [0, 0] };
@@ -284,6 +322,15 @@ exports.updateTechnicianProfile = async (req, res, next) => {
         // Populate and return
         await technician.populate('user', 'name email phone isActive');
         await technician.populate('categories', 'name');
+        await technician.populate('services', 'title price');
+
+        // Socket Emission for Real-time Update
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('technician:updated', technician);
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
 
         res.status(200).json({
             status: 'success',
@@ -358,6 +405,14 @@ exports.toggleUserStatus = async (req, res, next) => {
             targetId: user._id
         });
 
+        // Socket Emission for Real-time Update
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('user:updated', user);
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
+
         res.status(200).json({ status: 'success', data: { user } });
     } catch (error) {
         next(error);
@@ -409,6 +464,14 @@ exports.toggleServiceStatus = async (req, res, next) => {
             details: { newStatus: isActive }
         });
 
+        // Socket Emission for Real-time Update
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('service:updated', service);
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
+
         res.status(200).json({ status: 'success', data: { service } });
     } catch (error) {
         next(error);
@@ -433,6 +496,7 @@ exports.getAllBookings = async (req, res, next) => {
                 }
             })
             .populate('category', 'name price')
+            .populate('service', 'title price')
             .populate('review')
             .sort('-createdAt');
 
@@ -493,6 +557,37 @@ exports.getSettings = async (req, res, next) => {
     }
 };
 
+exports.getPublicSettings = async (req, res, next) => {
+    try {
+        let settings = await Settings.findOne({ isGlobal: true });
+
+        // If settings exist but no pincodes (migration fix), set default
+        if (settings && (!settings.serviceablePincodes || settings.serviceablePincodes.length === 0)) {
+            settings.serviceablePincodes = ['845438'];
+            await settings.save();
+        }
+
+        // If no settings at all, create with defaults
+        if (!settings) {
+            settings = await Settings.create({
+                isGlobal: true,
+                serviceablePincodes: ['845438']
+            });
+        }
+
+        res.status(200).json({
+            status: 'success',
+            data: {
+                serviceablePincodes: settings.serviceablePincodes,
+                maintenanceMode: settings.maintenanceMode || false,
+                maintenanceMessage: settings.maintenanceMessage
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 exports.updateSettings = async (req, res, next) => {
     try {
         const settings = await Settings.findOneAndUpdate(
@@ -509,6 +604,14 @@ exports.updateSettings = async (req, res, next) => {
             targetId: settings._id,
             details: req.body
         });
+
+        // Socket Emission for Real-time Update
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('settings:updated', settings);
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
 
         res.status(200).json({
             status: 'success',
@@ -539,6 +642,14 @@ exports.deleteReview = async (req, res, next) => {
             details: { technicianId: review.technician }
         });
 
+        // Socket Emission for Real-time Update
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('review:deleted', { id: req.params.id });
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
+
         res.status(204).json({
             status: 'success',
             data: null
@@ -567,6 +678,11 @@ exports.assignTechnician = async (req, res, next) => {
 
         if (!technicianId) {
             // UNASSIGN Logic
+            // NEW RULE: Prevent unassigning if job is already accepted or in progress
+            if (['ACCEPTED', 'IN_PROGRESS'].includes(booking.status)) {
+                return next(new AppError(`Cannot unassign technician from a ${booking.status.toLowerCase()} booking. Use reassign instead to maintain service continuity.`, 400));
+            }
+
             booking.technician = undefined;
             booking.status = 'PENDING';
             await booking.save({ validateBeforeSave: false });
@@ -583,7 +699,8 @@ exports.assignTechnician = async (req, res, next) => {
 
             const updatedBooking = await Booking.findById(booking._id)
                 .populate('customer', 'name email phone')
-                .populate('category', 'name price');
+                .populate('category', 'name price')
+                .populate('service', 'title price');
 
             return res.status(200).json({ status: 'success', data: { booking: updatedBooking } });
         }
@@ -617,11 +734,48 @@ exports.assignTechnician = async (req, res, next) => {
         const updatedBooking = await Booking.findById(booking._id)
             .populate('customer', 'name email phone')
             .populate('technician', 'name email phone')
-            .populate('category', 'name price');
+            .populate('category', 'name price')
+            .populate('service', 'title price');
+
+        // Socket Emission for Real-time Update
+        try {
+            const socketService = require('../utils/socket');
+            socketService.getIo().to('admin-room').emit('booking:updated', updatedBooking);
+        } catch (err) {
+            console.error('Socket emission failed:', err.message);
+        }
 
         res.status(200).json({
             status: 'success',
             data: { booking: updatedBooking }
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+exports.fulfillPasswordReset = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { password } = req.body;
+
+        if (!password) {
+            return next(new AppError('Please provide a new password', 400));
+        }
+
+        const user = await User.findById(id);
+        if (!user) {
+            return next(new AppError('No user found with that ID', 404));
+        }
+
+        user.password = password;
+        user.passwordResetRequested = false;
+        user.passwordResetRequestedAt = undefined;
+        await user.save();
+
+        res.status(200).json({
+            status: 'success',
+            message: 'Password reset successful'
         });
     } catch (err) {
         next(err);

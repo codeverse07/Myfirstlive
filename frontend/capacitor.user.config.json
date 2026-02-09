@@ -1,0 +1,6 @@
+{
+  "appId": "com.shridhar.user",
+  "appName": "Shridhar",
+  "webDir": "dist-user",
+  "bundledWebRuntime": false
+}

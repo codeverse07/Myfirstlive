@@ -273,12 +273,6 @@ const TechnicianBookings = () => {
                                             {booking.status === 'IN_PROGRESS' && (
                                                 <div className="flex gap-3">
                                                     <button
-                                                        onClick={() => handleAction(booking._id, 'CANCELLED')}
-                                                        className="flex-1 py-4 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
-                                                    >
-                                                        Cancel Job
-                                                    </button>
-                                                    <button
                                                         onClick={() => handleAction(booking._id, 'COMPLETED')}
                                                         className="flex-2 w-full py-5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xl shadow-emerald-500/20 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 active:scale-[0.98] transition-all"
                                                     >
@@ -346,7 +340,18 @@ const TechnicianBookings = () => {
                                                 type="number"
                                                 required
                                                 value={completionForm.finalAmount}
-                                                onChange={(e) => setCompletionForm(prev => ({ ...prev, finalAmount: e.target.value }))}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setCompletionForm(prev => {
+                                                        const newState = { ...prev, finalAmount: val };
+                                                        // Reset reason if price is not increased
+                                                        if (Number(val) <= Number(currentBooking?.price || 0)) {
+                                                            newState.extraReason = '';
+                                                            setSelectedReason('');
+                                                        }
+                                                        return newState;
+                                                    });
+                                                }}
                                                 className="w-full pl-12 pr-6 py-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border-2 border-slate-100 dark:border-slate-800 text-3xl font-black text-slate-900 dark:text-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all"
                                             />
                                         </div>
@@ -383,17 +388,21 @@ const TechnicianBookings = () => {
                                         </motion.div>
                                     )}
 
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest px-1 text-center block">Happy Pin (Verify with Customer)</label>
-                                        <input
-                                            type="text"
-                                            required
-                                            maxLength={6}
-                                            value={completionForm.securityPin}
-                                            onChange={(e) => setCompletionForm(prev => ({ ...prev, securityPin: e.target.value }))}
-                                            className="w-full p-6 bg-indigo-50 dark:bg-indigo-900/20 rounded-3xl border-2 border-indigo-100 dark:border-indigo-900/40 text-center text-4xl font-black tracking-[0.8em] text-indigo-600 dark:text-indigo-400 focus:border-indigo-500 outline-none"
-                                            placeholder="••••••"
-                                        />
+                                    <div className="space-y-4">
+                                        <label className="text-sm font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-[0.2em] px-1 text-center block">
+                                            Happy Pin (Verify with Customer)
+                                        </label>
+                                        <div className="relative group">
+                                            <input
+                                                type="text"
+                                                required
+                                                maxLength={6}
+                                                value={completionForm.securityPin}
+                                                onChange={(e) => setCompletionForm(prev => ({ ...prev, securityPin: e.target.value }))}
+                                                className="w-full p-8 bg-indigo-50 dark:bg-indigo-900/20 rounded-[2rem] border-2 border-indigo-100 dark:border-indigo-900/40 text-center text-5xl font-black tracking-[0.5em] text-indigo-600 dark:text-indigo-500 focus:border-indigo-500 focus:ring-8 focus:ring-indigo-500/10 outline-none transition-all placeholder:opacity-20"
+                                                placeholder="000000"
+                                            />
+                                        </div>
                                     </div>
 
                                     <div className="space-y-4">

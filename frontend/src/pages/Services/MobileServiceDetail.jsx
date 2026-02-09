@@ -97,7 +97,7 @@ const MobileServiceDetail = ({ service, onClose }) => {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed inset-0 z-60 bg-white dark:bg-slate-950 flex flex-col"
+            className="fixed inset-0 z-60 bg-[#FCFAF2] dark:bg-slate-950 flex flex-col"
         >
             {/* Header */}
             <div className="relative h-64 overflow-hidden">

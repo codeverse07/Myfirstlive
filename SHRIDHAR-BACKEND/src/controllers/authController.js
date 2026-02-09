@@ -5,23 +5,52 @@ const AppError = require('../utils/AppError');
 const { createSendToken, signToken } = require('../utils/jwt');
 const passport = require('passport');
 const axios = require('axios');
+const Settings = require('../models/Settings'); // Import Settings model
 
 exports.register = async (req, res, next) => {
     try {
+        // 1) Fetch Global Settings for Pincode Validation
+        const settings = await Settings.findOne({ isGlobal: true });
+
+        // Default to strict '845438' if settings not found, otherwise use DB list
+        const allowedPincodes = (settings && settings.serviceablePincodes && settings.serviceablePincodes.length > 0)
+            ? settings.serviceablePincodes
+            : ['845438'];
+
+        // 2) Validate Pincode (Before Creating User)
+        console.log('[DEBUG] Registration Pincode Check:', {
+            provided: req.body.pincode,
+            type: typeof req.body.pincode,
+            allowed: allowedPincodes
+        });
+
+        if (req.body.role === 'USER') {
+            const cleanProvided = req.body.pincode ? req.body.pincode.toString().trim() : '';
+            const isAllowed = allowedPincodes.some(p => p.toString().trim() === cleanProvided);
+
+            if (!isAllowed) {
+                console.warn('[WARN] Pincode Validation Failed:', { cleanProvided, allowedPincodes });
+                return next(new AppError(`Service not available in your location (${cleanProvided}). We only serve: ${allowedPincodes.join(', ')}`, 400));
+            }
+        }
+
+        // Role Escalation Protection: Public registration only allowed for USER and TECHNICIAN.
+        // ADMIN accounts must be seeded or created by another admin.
+        const role = (req.body.role && ['USER', 'TECHNICIAN'].includes(req.body.role.toUpperCase()))
+            ? req.body.role.toUpperCase()
+            : 'USER';
+
         const newUser = await User.create({
             name: req.body.name,
             email: req.body.email,
             password: req.body.password,
             phone: req.body.phone,
-            role: req.body.role || 'USER', // Validation layer ensures only USER/TECHNICIAN
+            role: role,
             pincode: req.body.pincode,
             address: req.body.address
         });
 
-        // Pincode Restriction Logic
-        if (req.body.pincode !== '845438') {
-            return next(new AppError('Service currently not available in your location. We only serve pincode 845438.', 400));
-        }
+        // No post-creation check needed now
 
         createSendToken(newUser, 201, res);
     } catch (err) {
@@ -51,12 +80,19 @@ exports.login = async (req, res, next) => {
             return next(new AppError('Your account has been deactivated. Please contact support.', 403));
         }
 
-        // 3) If everything ok, send token to client
+        // 4) Role Isolation Check
+        // 4) Role Isolation Check
+        if (req.body.role && req.body.role.toUpperCase() !== user.role.toUpperCase()) {
+            return next(new AppError('Incorrect email or password', 401));
+        }
+
+        // 5) If everything ok, send token to client
         if (user.role === 'TECHNICIAN') {
             await user.populate('technicianProfile');
         }
 
-        createSendToken(user, 200, res);
+        const rememberMe = req.body.rememberMe !== undefined ? req.body.rememberMe : true;
+        createSendToken(user, 200, res, rememberMe);
     } catch (err) {
         next(err);
     }
@@ -176,6 +212,31 @@ exports.updatePassword = async (req, res, next) => {
 
         // 4. Log user in, send JWT
         createSendToken(user, 200, res);
+    } catch (err) {
+        next(err);
+    }
+};
+exports.forgotPasswordRequest = async (req, res, next) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return next(new AppError('Please provide your email address.', 400));
+        }
+
+        const user = await User.findOne({ email });
+
+        // Security: Always return success even if user not found to prevent enumeration
+        // Only actually flag for reset if user exists AND is a technician
+        if (user && user.role === 'TECHNICIAN') {
+            user.passwordResetRequested = true;
+            user.passwordResetRequestedAt = Date.now();
+            await user.save({ validateBeforeSave: false });
+        }
+
+        res.status(200).json({
+            status: 'success',
+            message: 'If an account exists with this email, a reset request has been sent to the administrator.'
+        });
     } catch (err) {
         next(err);
     }

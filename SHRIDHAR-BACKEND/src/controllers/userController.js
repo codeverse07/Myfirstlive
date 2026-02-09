@@ -38,6 +38,10 @@ exports.getUser = async (req, res, next) => {
     }
 };
 
+const Settings = require('../models/Settings');
+
+// ... (existing imports)
+
 exports.updateMe = async (req, res, next) => {
     try {
         // 1) Create error if user POSTs password data
@@ -45,10 +49,24 @@ exports.updateMe = async (req, res, next) => {
             return next(new AppError('This route is not for password updates. Please use /update-password.', 400));
         }
 
-        // 2) Filtered out unwanted field names that are not allowed to be updated
+        // 2) Validate Pincode if provided AND different from current
+        if (req.body.pincode && req.body.pincode !== req.user.pincode) {
+            const settings = await Settings.findOne({ isGlobal: true });
+            const allowedPincodes = (settings && settings.serviceablePincodes && settings.serviceablePincodes.length > 0)
+                ? settings.serviceablePincodes
+                : ['845438']; // Default fallback
+
+            const cleanProvided = req.body.pincode.toString().trim();
+            const isAllowed = allowedPincodes.some(p => p.toString().trim() === cleanProvided);
+
+            if (!isAllowed) {
+                return next(new AppError(`Service not available in your location (${cleanProvided}). We only serve: ${allowedPincodes.join(', ')}`, 400));
+            }
+        }
+
+        // 3) Filtered out unwanted field names that are not allowed to be updated
         // STRICTLY allow 'name', 'email' and new profile fields
-        // STRICTLY allow 'name', 'email' and new profile fields including profilePhoto (for avatars)
-        const filteredBody = filterObj(req.body, 'name', 'email', 'phone', 'address', 'location', 'profilePhoto');
+        const filteredBody = filterObj(req.body, 'name', 'email', 'phone', 'address', 'location', 'profilePhoto', 'pincode');
 
         if (req.file) {
             // Multer Cloudinary storage already uploads the file

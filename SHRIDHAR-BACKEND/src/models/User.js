@@ -83,6 +83,13 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    passwordResetRequested: {
+        type: Boolean,
+        default: false
+    },
+    passwordResetRequestedAt: {
+        type: Date
+    },
     createdAt: {
         type: Date,
         default: Date.now

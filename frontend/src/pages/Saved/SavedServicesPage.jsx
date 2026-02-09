@@ -8,7 +8,7 @@ import { useBookings } from '../../context/BookingContext';
 import MobileBottomNav from '../../components/mobile/MobileBottomNav';
 import Button from '../../components/common/Button';
 import BookingModal from '../../components/bookings/BookingModal';
-import MobileServiceDetail from '../../pages/Services/MobileServiceDetail';
+// import MobileServiceDetail from '../../pages/Services/MobileServiceDetail';
 
 const SavedServicesPage = () => {
     const navigate = useNavigate();
@@ -42,11 +42,11 @@ const SavedServicesPage = () => {
 
     const handleBookClick = (service) => {
         setSelectedService(service);
-        if (window.innerWidth < 768) {
-            setIsMobileDetailOpen(true);
-        } else {
-            setIsModalOpen(true);
-        }
+        setIsModalOpen(true);
+    };
+
+    const handleCardClick = (service) => {
+        navigate(`/services/${service._id || service.id}`);
     };
 
     const handleConfirmBooking = async (bookingData) => {
@@ -59,7 +59,7 @@ const SavedServicesPage = () => {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-20">
+        <div className="min-h-screen bg-transparent dark:bg-slate-950 pb-20">
             {/* Mobile Header */}
             <div className="sticky top-0 z-50 bg-white dark:bg-slate-900 shadow-sm border-b border-gray-100 dark:border-slate-800 md:hidden">
                 <div className="flex items-center gap-4 px-4 py-4">
@@ -76,7 +76,7 @@ const SavedServicesPage = () => {
                         {savedList.map(service => (
                             <div
                                 key={service.id}
-                                onClick={() => handleBookClick(service)}
+                                onClick={() => handleCardClick(service)}
                                 className="bg-white dark:bg-slate-900 rounded-3xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-800 group relative cursor-pointer"
                             >
                                 <div className="h-44 relative overflow-hidden">
@@ -153,10 +153,8 @@ const SavedServicesPage = () => {
             />
 
             {isMobileDetailOpen && selectedService && (
-                <MobileServiceDetail
-                    service={selectedService}
-                    onClose={() => setIsMobileDetailOpen(false)}
-                />
+                /* MobileServiceDetail removed */
+                null
             )}
         </div>
     );

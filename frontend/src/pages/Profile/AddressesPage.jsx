@@ -28,7 +28,7 @@ const AddressesPage = () => {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-20">
+        <div className="min-h-screen bg-transparent dark:bg-slate-950 pb-20">
             {/* Mobile Header */}
             <div className="sticky top-0 z-50 bg-white dark:bg-slate-900 shadow-sm border-b border-gray-100 dark:border-slate-800 md:hidden">
                 <div className="flex items-center gap-4 px-4 py-4">
