@@ -774,20 +774,47 @@ const TechnicianDashboard = () => {
                 </div>
 
                 {/* Mobile Bottom Nav */}
-                <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-6 py-3 flex justify-between md:hidden z-30 pb-safe">
-                    {NAV_ITEMS.map(item => (
-                        <button
-                            key={item.id}
-                            onClick={() => setActiveTab(item.id)}
-                            className={`flex flex-col items-center gap-1 transition-colors ${activeTab === item.id
-                                ? 'text-blue-600 dark:text-blue-400'
-                                : 'text-slate-400'
-                                }`}
-                        >
-                            <item.icon className="w-6 h-6" strokeWidth={activeTab === item.id ? 2.5 : 2} />
-                            <span className="text-[10px] font-bold">{item.label}</span>
-                        </button>
-                    ))}
+                <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 md:hidden z-30 shadow-lg">
+                    {/* Status Toggle Bar */}
+                    <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${technicianProfile?.isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></div>
+                                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                    {isStatusUpdating ? 'Updating...' : (technicianProfile?.isOnline ? 'Online' : 'Offline')}
+                                </span>
+                            </div>
+                            <Switch
+                                checked={technicianProfile?.isOnline || false}
+                                onChange={toggleStatus}
+                                disabled={isStatusUpdating}
+                                className={`${technicianProfile?.isOnline ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'
+                                    } relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50`}
+                            >
+                                <span
+                                    className={`${technicianProfile?.isOnline ? 'translate-x-6' : 'translate-x-1'
+                                        } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                                />
+                            </Switch>
+                        </div>
+                    </div>
+
+                    {/* Navigation Items */}
+                    <div className="px-4 py-2 flex justify-around">
+                        {NAV_ITEMS.map(item => (
+                            <button
+                                key={item.id}
+                                onClick={() => setActiveTab(item.id)}
+                                className={`flex flex-col items-center gap-1 transition-colors py-2 px-3 rounded-xl ${activeTab === item.id
+                                    ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10'
+                                    : 'text-slate-500 dark:text-slate-400'
+                                    }`}
+                            >
+                                <item.icon className="w-5 h-5" strokeWidth={activeTab === item.id ? 2.5 : 2} />
+                                <span className="text-[9px] font-bold uppercase tracking-wide">{item.label}</span>
+                            </button>
+                        ))}
+                    </div>
                 </nav>
             </main >
         </div >
